@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>EDGEIQ — Journal v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg0:#020508;--bg1:#060C12;--bg2:#0A1219;--bg3:#0F1A24;--b1:#131E2A;--b2:#1C2B3A;--acc:#00E5FF;--g1:#00FF85;--r1:#FF2D55;--y1:#FFD60A;--o1:#FF8C00;--cy1:#00E5CC;--gy:#8A9BB0;--wh:#DDE8F0;--lt:#B8CDDE;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg0);color:var(--wh);font-family:'DM Sans',sans-serif;min-height:100vh;padding-bottom:40px;}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px;}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+
+.nav{background:var(--bg2);border-bottom:1px solid var(--b1);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
+.logo{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;background:linear-gradient(90deg,var(--acc),var(--g1));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;}
+.nav-r{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.chip{background:var(--bg3);border:1px solid var(--b2);border-radius:3px;padding:3px 9px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--lt);letter-spacing:1px;white-space:nowrap;}
+.chip b{color:var(--acc);font-weight:600;}
+.chip.kz-live{border-color:rgba(0,255,133,.3);background:rgba(0,255,133,.07);color:var(--g1);}
+.chip.kz-block{border-color:rgba(255,45,85,.35);background:rgba(255,45,85,.08);color:var(--r1);}
+.chip.unsaved{border-color:rgba(255,140,0,.5);background:rgba(255,140,0,.1);color:var(--o1);}
+
+.tabs{display:flex;gap:2px;background:var(--bg2);border-bottom:1px solid var(--b1);padding:0 12px;position:sticky;top:39px;z-index:49;}
+.tab{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px;padding:8px 12px;color:var(--gy);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:0;border-left:0;border-right:0;}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc);}
+
+.wrap{max-width:980px;margin:0 auto;padding:12px;}
+.pane{display:none;}.pane.on{display:block;}
+
+.rails{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:12px;}
+.rail{background:var(--bg1);border:1px solid var(--b2);border-radius:6px;padding:8px 9px;}
+.rail-l{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);letter-spacing:1.4px;margin-bottom:4px;}
+.rail-v{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:var(--wh);}
+.rail.warn{border-color:rgba(255,140,0,.4);}.rail.warn .rail-v{color:var(--o1);}
+.rail.bad{border-color:rgba(255,45,85,.45);background:rgba(255,45,85,.05);}.rail.bad .rail-v{color:var(--r1);}
+.rail.good .rail-v{color:var(--g1);}
+
+.card{background:var(--bg1);border:1px solid var(--b2);border-radius:8px;padding:12px;margin-bottom:12px;}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--b1);padding-bottom:8px;margin-bottom:10px;flex-wrap:wrap;}
+.card-t{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--y1);letter-spacing:2px;}
+.card-n{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gy);}
+.help{font-size:11px;color:var(--gy);line-height:1.55;margin-top:8px;}
+
+.datenav{display:flex;align-items:center;gap:6px;}
+.dbtn{background:var(--bg3);border:1px solid var(--b2);color:var(--lt);border-radius:4px;padding:5px 9px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;}
+.dbtn:hover{border-color:var(--acc);color:var(--acc);}
+.dinp{background:var(--bg3);border:1px solid var(--b2);color:var(--wh);border-radius:4px;padding:5px 7px;font-family:'IBM Plex Mono',monospace;font-size:11px;}
+
+.grid{display:grid;gap:7px;}
+.g2{grid-template-columns:repeat(2,1fr);}.g3{grid-template-columns:repeat(3,1fr);}.g4{grid-template-columns:repeat(4,1fr);}
+label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);letter-spacing:1.4px;margin-bottom:3px;display:block;}
+.inp,.sel{width:100%;background:var(--bg3);border:1px solid var(--b2);color:var(--wh);padding:8px;font-family:'IBM Plex Mono',monospace;font-size:12px;border-radius:4px;outline:none;}
+.inp:focus,.sel:focus{border-color:var(--y1);}
+.sel{-webkit-appearance:none;appearance:none;}
+.inp::placeholder{color:#53657a;}
+
+.tg{display:flex;align-items:center;gap:9px;padding:8px 9px;background:var(--bg3);border:1px solid var(--b2);border-radius:5px;cursor:pointer;margin-bottom:6px;font-size:12px;color:var(--lt);}
+.tg .box{width:16px;height:16px;border:2px solid var(--b2);border-radius:3px;flex-shrink:0;position:relative;}
+.tg.on{border-color:rgba(0,255,133,.35);color:var(--wh);}
+.tg.on .box{border-color:var(--g1);background:var(--g1);}
+.tg.on .box:after{content:"";position:absolute;left:4px;top:0;width:4px;height:9px;border:solid var(--bg0);border-width:0 2px 2px 0;transform:rotate(45deg);}
+
+.btn{width:100%;padding:11px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.5px;cursor:pointer;border:2px solid var(--y1);background:rgba(255,214,10,.1);color:var(--y1);}
+.btn:active{transform:translateY(1px);}
+.btn.sec{border-color:var(--b2);background:var(--bg3);color:var(--lt);font-weight:400;}
+.btn.acc{border-color:var(--acc);background:rgba(0,229,255,.09);color:var(--acc);}
+.btn.dgr{border-color:rgba(255,45,85,.4);background:rgba(255,45,85,.06);color:var(--r1);font-weight:400;}
+.btn-row{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:8px;}
+.btn-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px;}
+
+.pf{border-radius:5px;padding:9px 10px;font-family:'IBM Plex Mono',monospace;font-size:10px;line-height:1.7;margin-bottom:9px;}
+.pf.ok{border:1px solid rgba(0,255,133,.35);background:rgba(0,255,133,.06);color:var(--g1);}
+.pf.veto{border:1px solid rgba(255,45,85,.45);background:rgba(255,45,85,.07);color:var(--r1);}
+.pf.warn{border:1px solid rgba(255,140,0,.4);background:rgba(255,140,0,.06);color:var(--o1);}
+
+.tbl{border:1px solid var(--b2);border-radius:6px;overflow:hidden;}
+.th,.tr{display:grid;grid-template-columns:60px 46px 38px 76px 50px 1fr 26px;gap:4px;padding:7px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;align-items:center;}
+.th{background:var(--bg3);color:var(--gy);font-size:8px;letter-spacing:1.2px;}
+.tr{border-top:1px solid var(--b1);color:var(--lt);}
+.tr.flagged{background:rgba(255,45,85,.05);}
+.win{color:var(--g1);}.loss{color:var(--r1);}.be{color:var(--gy);}
+.flags{font-size:9px;color:var(--r1);line-height:1.4;}
+.del{background:none;border:none;color:#53657a;cursor:pointer;font-size:14px;line-height:1;}
+.del:hover{color:var(--r1);}
+.empty{padding:22px 12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gy);line-height:1.6;}
+
+/* LOG TABLE */
+.lth,.ltr{display:grid;grid-template-columns:88px 34px 44px 82px 46px 46px 30px 1fr;gap:5px;padding:7px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;align-items:center;}
+.lth{background:var(--bg3);color:var(--gy);font-size:8px;letter-spacing:1.2px;}
+.ltr{border-top:1px solid var(--b1);color:var(--lt);cursor:pointer;}
+.ltr:hover{background:rgba(0,229,255,.05);}
+.ltr.cur{background:rgba(0,229,255,.09);}
+.gA{color:var(--g1);}.gB{color:var(--acc);}.gC{color:var(--o1);}.gD{color:var(--r1);}
+
+/* BREAKDOWN */
+.bd{margin-bottom:12px;}
+.bd-t{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--acc);letter-spacing:1.5px;margin-bottom:7px;}
+.bdrow{display:grid;grid-template-columns:130px 1fr 130px;gap:8px;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:4px 0;color:var(--lt);}
+.meter{height:9px;background:var(--b1);border-radius:2px;overflow:hidden;}
+.meter i{display:block;height:100%;background:var(--acc);}
+.meter i.hi{background:var(--g1);}.meter i.lo{background:var(--r1);}
+.bdval{text-align:right;color:var(--wh);}
+.thin{color:var(--gy);}
+
+.bars{display:flex;gap:2px;flex-wrap:wrap;margin:10px 0 8px;}
+.bar{flex:1;min-width:7px;height:26px;border-radius:2px;background:var(--b1);border:1px solid var(--b1);}
+.bar.a{background:rgba(0,255,133,.55);border-color:var(--g1);}
+.bar.b{background:rgba(0,229,255,.5);border-color:var(--acc);}
+.bar.c{background:rgba(255,140,0,.5);border-color:var(--o1);}
+.bar.d{background:rgba(255,45,85,.5);border-color:var(--r1);}
+.legend{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gy);display:flex;gap:12px;flex-wrap:wrap;}
+
+@media(max-width:640px){
+  .rails{grid-template-columns:repeat(2,1fr);}
+  .g4,.g3{grid-template-columns:repeat(2,1fr);}
+  .th,.tr{grid-template-columns:52px 40px 30px 68px 1fr 24px;}
+  .th span:nth-child(5),.tr .c5{display:none;}
+  .lth,.ltr{grid-template-columns:76px 30px 40px 72px 40px 28px;}
+  .lth span:nth-child(6),.ltr .l6,.lth span:nth-child(8),.ltr .l8{display:none;}
+  .bdrow{grid-template-columns:96px 1fr 92px;}
+  .btn-row3{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="logo">EDGEIQ JOURNAL</div>
+  <div class="nav-r">
+    <div class="chip" id="c-clock">--:--</div>
+    <div class="chip" id="c-kz">WINDOW</div>
+    <div class="chip">DAY <b id="c-day">0</b>/30</div>
+    <div class="chip" id="c-backup">BACKUP —</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab on" id="tb-session" onclick="go('session')">SESSION</button>
+  <button class="tab" id="tb-log" onclick="go('log')">RUNNING LOG</button>
+  <button class="tab" id="tb-stats" onclick="go('stats')">BREAKDOWN</button>
+  <button class="tab" id="tb-data" onclick="go('data')">DATA</button>
+</div>
+
+<div class="wrap">
+
+<!-- ============ SESSION ============ -->
+<div class="pane on" id="p-session">
+
+  <div class="rails">
+    <div class="rail" id="r-pnl"><div class="rail-l">NET THIS DAY</div><div class="rail-v" id="v-pnl">$0</div></div>
+    <div class="rail" id="r-trades"><div class="rail-l">TRADES / 30</div><div class="rail-v" id="v-trades">0</div></div>
+    <div class="rail" id="r-streak"><div class="rail-l">LOSS STREAK</div><div class="rail-v" id="v-streak">0</div></div>
+    <div class="rail" id="r-viol"><div class="rail-l">VIOLATIONS</div><div class="rail-v" id="v-viol">0</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div class="card-t">DAY SETUP</div>
+      <div class="datenav">
+        <button class="dbtn" onclick="shiftDay(-1)">‹</button>
+        <input type="date" class="dinp" id="d-date" onchange="setDay(this.value)"/>
+        <button class="dbtn" onclick="shiftDay(1)">›</button>
+        <button class="dbtn" onclick="setDay(etDate())">today</button>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-bottom:9px">
+      <div>
+        <label class="lbl" for="f-panelf">PANEL F — LOCKED 9:45</label>
+        <select class="sel" id="f-panelf">
+          <option value="">not set</option>
+          <option value="EXPANDING">EXPANDING — full pass</option>
+          <option value="CONTRACTING">CONTRACTING — no price lie (5/6 min, 75%)</option>
+          <option value="PRICE_LIE">CONTRACTING + PRICE LIE — hard veto</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="f-vix">VIX REGIME</label>
+        <select class="sel" id="f-vix">
+          <option value="">not set</option><option>NORMAL</option><option>ELEVATED</option><option>EXTREME</option><option>COMPRESSED</option>
+        </select>
+      </div>
+    </div>
+
+    <label class="lbl">EMOTIONAL STATE — answer before the first trade</label>
+    <div class="tg" id="e0" onclick="tog(0)"><div class="box"></div><span>I slept enough and I am not rushing.</span></div>
+    <div class="tg" id="e1" onclick="tog(1)"><div class="box"></div><span>Yesterday's result is not driving today. No streak to protect, no loss to win back.</span></div>
+    <div class="tg" id="e2" onclick="tog(2)"><div class="box"></div><span>I do not need money from this session. Zero trades is an acceptable day.</span></div>
+    <div class="help" id="esg-note">Score 0/3.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><div class="card-t">LOG TRADE</div><div class="card-n">time auto-fills — edit it if logging late</div></div>
+    <div id="preflight"></div>
+    <div class="grid g4" style="margin-bottom:7px">
+      <div><label class="lbl" for="t-time">TIME ET</label><input class="inp" id="t-time" placeholder="10:17"/></div>
+      <div><label class="lbl" for="t-dir">DIRECTION</label><select class="sel" id="t-dir"><option>LONG</option><option>SHORT</option></select></div>
+      <div><label class="lbl" for="t-qty">CONTRACTS</label><input class="inp" id="t-qty" type="number" min="1" max="20" value="1"/></div>
+      <div><label class="lbl" for="t-conf">CONFLUENCE</label><select class="sel" id="t-conf"><option>6/6</option><option>5/6</option><option>4/6</option><option>3/6</option><option>2/6 or less</option></select></div>
+    </div>
+    <div class="grid g3" style="margin-bottom:7px">
+      <div><label class="lbl" for="t-res">RESULT</label><select class="sel" id="t-res"><option>WIN</option><option>LOSS</option><option>BREAKEVEN</option></select></div>
+      <div><label class="lbl" for="t-pnl">P&amp;L $</label><input class="inp" id="t-pnl" type="number" step="0.5" placeholder="47.50"/></div>
+      <div><label class="lbl" for="t-note">ONE LINE — WHY YOU TOOK IT</label><input class="inp" id="t-note" placeholder="FVG retest after sweep"/></div>
+    </div>
+    <button class="btn" onclick="addTrade()">LOG TRADE</button>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><div class="card-t">TRADES THIS DAY</div><div class="card-n" id="today-sum">—</div></div>
+    <div class="tbl">
+      <div class="th"><span>TIME</span><span>DIR</span><span>QTY</span><span>P&amp;L</span><span>CONF</span><span>WINDOW / FLAGS</span><span></span></div>
+      <div id="rows"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><div class="card-t">CLOSE THE DAY</div><div class="card-n" id="grade-hint">—</div></div>
+    <div class="grid g2" style="margin-bottom:7px">
+      <div>
+        <label class="lbl" for="dd-grade">PROCESS GRADE — rules followed, not money made</label>
+        <select class="sel" id="dd-grade">
+          <option value="">not set</option>
+          <option value="A">A — every rule held</option>
+          <option value="B">B — minor drift, no hard violations</option>
+          <option value="C">C — one hard violation</option>
+          <option value="D">D — multiple violations or size escalation</option>
+        </select>
+      </div>
+      <div><label class="lbl" for="dd-note">THE ONE THING TO FIX TOMORROW</label><input class="inp" id="dd-note" placeholder="Stopped waiting for the EMA retest after 10:30"/></div>
+    </div>
+    <button class="btn acc" onclick="closeDay()">SAVE AND CLOSE DAY</button>
+  </div>
+</div>
+
+<!-- ============ RUNNING LOG ============ -->
+<div class="pane" id="p-log">
+  <div class="card">
+    <div class="card-h"><div class="card-t">30-DAY COLLECTION</div><div class="card-n" id="coll-n">0 of 30 days</div></div>
+    <div class="bars" id="bars"></div>
+    <div class="legend"><span class="gA">A</span><span class="gB">B</span><span class="gC">C</span><span class="gD">D</span><span>· empty = not logged</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><div class="card-t">EVERY DAY LOGGED</div><div class="card-n">tap a row to open it</div></div>
+    <div class="tbl">
+      <div class="lth"><span>DATE</span><span>#</span><span>TRD</span><span>NET</span><span>WIN</span><span>VIOL</span><span>GR</span><span>FIX FOR TOMORROW</span></div>
+      <div id="logrows"><div class="empty">Nothing logged yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ BREAKDOWN ============ -->
+<div class="pane" id="p-stats">
+  <div class="rails">
+    <div class="rail"><div class="rail-l">DAYS LOGGED</div><div class="rail-v" id="s-days">0</div></div>
+    <div class="rail"><div class="rail-l">TOTAL TRADES</div><div class="rail-v" id="s-trades">0</div></div>
+    <div class="rail" id="s-net-r"><div class="rail-l">CUMULATIVE NET</div><div class="rail-v" id="s-net">$0</div></div>
+    <div class="rail" id="s-viol-r"><div class="rail-l">TOTAL VIOLATIONS</div><div class="rail-v" id="s-viol">0</div></div>
+  </div>
+  <div class="card">
+    <div class="card-h"><div class="card-t">WHAT THE DATA SAYS SO FAR</div><div class="card-n" id="conf-warn">—</div></div>
+    <div class="bd"><div class="bd-t">WIN RATE BY CONFLUENCE SCORE</div><div id="bd-conf"></div></div>
+    <div class="bd"><div class="bd-t">WIN RATE BY WINDOW</div><div id="bd-win"></div></div>
+    <div class="bd"><div class="bd-t">WIN RATE BY LOSS STREAK ENTERING THE TRADE</div><div id="bd-streak"></div></div>
+    <div class="bd"><div class="bd-t">WIN RATE BY CONTRACT SIZE</div><div id="bd-size"></div></div>
+    <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
+    <div class="bd"><div class="bd-t">PROCESS GRADE vs MONEY</div><div id="bd-grade"></div></div>
+    <div class="help">Any row with fewer than 20 trades is noise, not a finding. It is shown so you can see the sample filling, not so you can act on it.</div>
+  </div>
+</div>
+
+<!-- ============ DATA ============ -->
+<div class="pane" id="p-data">
+  <div class="card">
+    <div class="card-h"><div class="card-t">BACKUP</div><div class="card-n" id="bk-when">never</div></div>
+    <div class="help" style="margin-top:0">This app stores data in the browser. Clearing site data, switching browsers, or moving to the iPad loses it. Save a backup to OneDrive at the end of each week — the restore file rebuilds everything exactly.</div>
+    <div class="btn-row3">
+      <button class="btn acc" onclick="backup()">SAVE BACKUP FILE</button>
+      <button class="btn sec" onclick="document.getElementById('restore').click()">RESTORE FROM FILE</button>
+      <button class="btn sec" onclick="exportCSV()">EXPORT CSV</button>
+    </div>
+    <input type="file" id="restore" accept=".json" style="display:none" onchange="doRestore(this)"/>
+  </div>
+  <div class="card">
+    <div class="card-h"><div class="card-t">EXCEL HANDOFF</div><div class="card-n">system of record</div></div>
+    <div class="help" style="margin-top:0">Export CSV, open the EDGEIQ_Journal workbook, and paste into the TRADES tab starting at A2. Column order matches exactly. The dashboard recalculates itself. Paste over the whole range each time rather than appending — the export is always the full history, not a delta.</div>
+  </div>
+  <div class="card">
+    <div class="card-h"><div class="card-t">DANGER</div><div class="card-n">no undo</div></div>
+    <button class="btn dgr" onclick="wipe()">DELETE ALL DATA</button>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ---------- STORAGE SHIM ---------- */
+const MEM={};
+const S={
+  async get(k){
+    try{ if(window.storage){const r=await window.storage.get(k,false); return r?r.value:null;} }catch(e){ return null; }
+    try{ return localStorage.getItem(k); }catch(e){ return MEM[k]??null; }
+  },
+  async set(k,v){
+    try{ if(window.storage){ await window.storage.set(k,v,false); return; } }catch(e){}
+    try{ localStorage.setItem(k,v); }catch(e){ MEM[k]=v; }
+  }
+};
+const KEY='edgeiq_journal_v2';
+
+let DB={days:{},lastBackup:null};
+let VIEW=etDate();
+
+function blankDay(d){return {date:d,panelF:'',vix:'',esg:[false,false,false],grade:'',note:'',trades:[],closed:false};}
+function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
+
+/* ---------- ET TIME ---------- */
+function etParts(){
+  const f=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+  const p={}; f.formatToParts(new Date()).forEach(x=>p[x.type]=x.value); return p;
+}
+function etDate(){const p=etParts();return `${p.year}-${p.month}-${p.day}`;}
+function etMins(){const p=etParts();return (+p.hour===24?0:+p.hour)*60+(+p.minute);}
+function fmtET(){const p=etParts();return `${p.hour}:${p.minute} ET`;}
+function parseMins(s){
+  if(!s) return null;
+  const m=String(s).trim().match(/^(\d{1,2}):?(\d{2})\s*(am|pm)?$/i);
+  if(!m) return null;
+  let h=+m[1], mi=+m[2], ap=m[3];
+  if(ap){ ap=ap.toLowerCase(); if(ap==='pm'&&h<12)h+=12; if(ap==='am'&&h===12)h=0; }
+  else if(h<=7) h+=12;
+  if(h>23||mi>59) return null;
+  return h*60+mi;
+}
+function fmtMins(t){return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');}
+function money(n){return (n<0?'-$':'$')+Math.abs(n).toFixed(2);}
+
+/* ---------- WINDOWS ---------- */
+const W=[
+  {n:'PRE-OPEN',a:0,b:570,ok:false},{n:'OPEN RANGE',a:570,b:585,ok:false},
+  {n:'AM KILLZONE',a:585,b:600,ok:true},{n:'SILVER BULLET',a:600,b:660,ok:true},
+  {n:'MID-MORNING',a:660,b:690,ok:true},{n:'DEAD ZONE',a:690,b:810,ok:false},
+  {n:'PM SESSION',a:810,b:900,ok:true},{n:'POWER HOUR',a:900,b:960,ok:true},
+  {n:'AFTER HOURS',a:960,b:1440,ok:false}
+];
+function windowAt(t){ return W.find(w=>t>=w.a&&t<w.b)||W[W.length-1]; }
+
+/* ---------- VIOLATIONS ---------- */
+function analyze(t,prior,d){
+  const w=windowAt(t.mins), f=[];
+  if(w.n==='DEAD ZONE') f.push('DEAD ZONE');
+  if(t.mins<585) f.push(t.mins<570?'PRE-OPEN':'OPENING RANGE');
+  if(t.mins>=960) f.push('AFTER HOURS');
+  if(d.panelF==='PRICE_LIE') f.push('PRICE LIE VETO');
+  if(d.panelF==='CONTRACTING'&&['4/6','3/6','2/6 or less'].includes(t.conf)) f.push('CONTRACTING NEEDS 5/6');
+  if(['3/6','2/6 or less'].includes(t.conf)) f.push('BELOW 4/6 MIN');
+  if(t.qty>1&&t.conf!=='6/6') f.push('SIZE WITHOUT 6/6');
+  const esg=(d.esg||[]).filter(Boolean).length;
+  if(esg<2&&(t.conf!=='6/6'||t.qty>1)) f.push('ESG RESTRICTED');
+  let streak=0; for(let i=prior.length-1;i>=0;i--){ if(prior[i].res==='LOSS') streak++; else break; }
+  if(streak>=3){
+    f.push('LOCKOUT — 3-LOSS STREAK');
+    const last=prior[prior.length-1];
+    if(last&&t.mins-last.mins<20) f.push('LOCKOUT WINDOW <20MIN');
+  }
+  const L=prior.filter(x=>x.res==='LOSS');
+  if(L.length>=2){ const a=L[L.length-1],b=L[L.length-2]; if(a.mins-b.mins<=10&&t.mins-a.mins<10) f.push('SPEED LOCKOUT'); }
+  const prev=prior[prior.length-1];
+  if(prev&&prev.res==='LOSS'&&t.qty>prev.qty) f.push('SIZE UP AFTER LOSS');
+  if(prior.length>=30) f.push('OVER 30 TRADES');
+  if(prior.reduce((s,x)=>s+(+x.pnl||0),0)<=-1500) f.push('PAST DAILY LOSS LIMIT');
+  return {window:w.n,flags:f,streakBefore:streak};
+}
+function recompute(d){ const out=[]; d.trades.sort((a,b)=>a.mins-b.mins); d.trades.forEach(t=>{const a=analyze(t,out.slice(),d);t.window=a.window;t.flags=a.flags;t.streakBefore=a.streakBefore;out.push(t);}); }
+
+/* ---------- PREFLIGHT ---------- */
+function preflight(){
+  const d=day(), el=document.getElementById('preflight');
+  const live=(VIEW===etDate());
+  const t=live?etMins():600, w=windowAt(t);
+  const esg=(d.esg||[]).filter(Boolean).length;
+  const net=d.trades.reduce((s,x)=>s+(+x.pnl||0),0);
+  let streak=0; for(let i=d.trades.length-1;i>=0;i--){ if(d.trades[i].res==='LOSS') streak++; else break; }
+  if(!live){ el.innerHTML='<div class="pf warn">Editing '+VIEW+' — a past day. Live vetoes are off; violations are still scored on save.</div>'; return; }
+  const v=[],wn=[];
+  if(d.panelF==='PRICE_LIE') v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
+  if(!w.ok) v.push(w.n+' — no entries in this window');
+  if(streak>=3) v.push('3-loss streak — 20-minute lockout, then 6/6 only');
+  if(net<=-1500) v.push('Daily loss limit reached — done for the day');
+  if(d.trades.length>=30) v.push('30-trade cap reached');
+  if(!d.panelF) wn.push('Panel F not locked — set it before 9:45');
+  if(esg<2) wn.push('Emotional state '+esg+'/3 — restricted: 6/6 and 1 contract only');
+  if(d.panelF==='CONTRACTING') wn.push('Contracting — 5/6 minimum, 75% size, tight stops');
+  if(v.length) el.innerHTML='<div class="pf veto">VETO ACTIVE<br>'+v.map(x=>'· '+x).join('<br>')+'</div>';
+  else if(wn.length) el.innerHTML='<div class="pf warn">'+wn.map(x=>'· '+x).join('<br>')+'</div>';
+  else el.innerHTML='<div class="pf ok">'+w.n+' open · Panel F '+d.panelF+' · emotional state 3/3 · no active vetoes</div>';
+}
+
+/* ---------- RENDER ---------- */
+function go(p){
+  ['session','log','stats','data'].forEach(x=>{
+    document.getElementById('p-'+x).classList.toggle('on',x===p);
+    document.getElementById('tb-'+x).classList.toggle('on',x===p);
+  });
+  window.scrollTo(0,0);
+}
+function setDay(v){ if(!v) return; VIEW=v; render(); }
+function shiftDay(n){ const d=new Date(VIEW+'T12:00:00'); d.setDate(d.getDate()+n); VIEW=d.toISOString().slice(0,10); render(); }
+
+function render(){
+  const d=day();
+  document.getElementById('c-clock').textContent=fmtET();
+  document.getElementById('d-date').value=VIEW;
+  const w=windowAt(etMins()), kz=document.getElementById('c-kz');
+  kz.textContent=w.n; kz.className='chip '+(w.ok?'kz-live':'kz-block');
+
+  document.getElementById('f-panelf').value=d.panelF||'';
+  document.getElementById('f-vix').value=d.vix||'';
+  document.getElementById('dd-grade').value=d.grade||'';
+  document.getElementById('dd-note').value=d.note||'';
+  [0,1,2].forEach(i=>document.getElementById('e'+i).classList.toggle('on',!!d.esg[i]));
+  const esg=d.esg.filter(Boolean).length;
+  document.getElementById('esg-note').textContent=esg>=2?'Score '+esg+'/3. Normal permissions.':'Score '+esg+'/3. Restricted day: 6/6 confluence only, 1 contract, no exceptions.';
+
+  const net=d.trades.reduce((s,x)=>s+(+x.pnl||0),0);
+  const wins=d.trades.filter(x=>x.res==='WIN').length;
+  const dec=d.trades.filter(x=>x.res!=='BREAKEVEN').length;
+  let streak=0; for(let i=d.trades.length-1;i>=0;i--){ if(d.trades[i].res==='LOSS') streak++; else break; }
+  const viol=d.trades.reduce((s,x)=>s+x.flags.length,0);
+
+  document.getElementById('v-pnl').textContent=money(net);
+  document.getElementById('r-pnl').className='rail '+(net<=-1500?'bad':net<0?'warn':net>0?'good':'');
+  document.getElementById('v-trades').textContent=d.trades.length;
+  document.getElementById('r-trades').className='rail '+(d.trades.length>=30?'bad':d.trades.length>=20?'warn':'');
+  document.getElementById('v-streak').textContent=streak;
+  document.getElementById('r-streak').className='rail '+(streak>=3?'bad':streak===2?'warn':'');
+  document.getElementById('v-viol').textContent=viol;
+  document.getElementById('r-viol').className='rail '+(viol>0?'bad':'good');
+  document.getElementById('today-sum').textContent=d.trades.length?d.trades.length+' trades · '+(dec?Math.round(wins/dec*100):0)+'% win · '+money(net):'—';
+
+  const rows=document.getElementById('rows');
+  rows.innerHTML=d.trades.length?d.trades.map((x,i)=>{
+    const cls=x.res==='WIN'?'win':x.res==='LOSS'?'loss':'be';
+    return '<div class="tr'+(x.flags.length?' flagged':'')+'"><span>'+fmtMins(x.mins)+'</span><span>'+x.dir+'</span><span>'+x.qty+'</span><span class="'+cls+'">'+money(+x.pnl||0)+'</span><span class="c5">'+x.conf+'</span><span>'+x.window+(x.flags.length?'<div class="flags">'+x.flags.join(' · ')+'</div>':'')+'</span><button class="del" title="Delete" onclick="delTrade('+i+')">×</button></div>';
+  }).join(''):'<div class="empty">No trades on this day.<br>A zero-trade day still counts toward the 30 — close it out below.</div>';
+
+  document.getElementById('grade-hint').textContent=viol>0?viol+' violation'+(viol>1?'s':'')+' logged — a C or D unless you can defend it':'No violations logged';
+
+  renderLog(); renderStats();
+  document.getElementById('bk-when').textContent=DB.lastBackup?('last backup '+DB.lastBackup):'never backed up';
+  const cb=document.getElementById('c-backup');
+  cb.textContent='BACKUP '+(DB.lastBackup?DB.lastBackup.slice(5):'—');
+  cb.className='chip '+(DB.lastBackup?'':'unsaved');
+  preflight();
+}
+
+function closedKeys(){ return Object.keys(DB.days).filter(k=>DB.days[k].closed).sort(); }
+
+function renderLog(){
+  const keys=closedKeys();
+  document.getElementById('c-day').textContent=Math.min(keys.length+(DB.days[VIEW]&&DB.days[VIEW].closed?0:1),30);
+  document.getElementById('coll-n').textContent=keys.length+' of 30 days';
+  let h=''; for(let i=0;i<30;i++){ const k=keys[i]; h+='<div class="bar '+(k?(DB.days[k].grade||'').toLowerCase():'')+'" title="'+(k||'')+'"></div>'; }
+  document.getElementById('bars').innerHTML=h;
+
+  const all=Object.keys(DB.days).sort().reverse();
+  const idx={}; keys.forEach((k,i)=>idx[k]=i+1);
+  const lr=document.getElementById('logrows');
+  lr.innerHTML=all.length?all.map(k=>{
+    const d=DB.days[k];
+    const net=d.trades.reduce((s,x)=>s+(+x.pnl||0),0);
+    const wn=d.trades.filter(x=>x.res==='WIN').length;
+    const dc=d.trades.filter(x=>x.res!=='BREAKEVEN').length;
+    const v=d.trades.reduce((s,x)=>s+x.flags.length,0);
+    return '<div class="ltr'+(k===VIEW?' cur':'')+'" onclick="openDay(\''+k+'\')">'
+      +'<span>'+k+'</span><span class="thin">'+(idx[k]||'·')+'</span><span>'+d.trades.length+'</span>'
+      +'<span class="'+(net<0?'loss':net>0?'win':'be')+'">'+money(net)+'</span>'
+      +'<span class="l5">'+(dc?Math.round(wn/dc*100)+'%':'—')+'</span>'
+      +'<span class="l6 '+(v?'loss':'')+'">'+v+'</span>'
+      +'<span class="g'+(d.grade||'')+'">'+(d.grade||'·')+'</span>'
+      +'<span class="l8 thin">'+(d.note||'')+'</span></div>';
+  }).join(''):'<div class="empty">Nothing logged yet.</div>';
+}
+
+function openDay(k){ VIEW=k; go('session'); render(); }
+
+/* ---------- BREAKDOWN ---------- */
+function allTrades(){ const o=[]; Object.keys(DB.days).sort().forEach(k=>DB.days[k].trades.forEach(t=>o.push(Object.assign({date:k,grade:DB.days[k].grade},t)))); return o; }
+
+function bdRows(el,groups){
+  const host=document.getElementById(el);
+  const keys=Object.keys(groups).filter(k=>groups[k].n>0);
+  if(!keys.length){ host.innerHTML='<div class="bdrow thin"><span>no data yet</span><span></span><span></span></div>'; return; }
+  host.innerHTML=keys.map(k=>{
+    const g=groups[k];
+    const wr=g.dec?Math.round(g.win/g.dec*100):0;
+    const cls=g.n<20?'':(wr>=55?'hi':wr<45?'lo':'');
+    return '<div class="bdrow"><span>'+k+'</span><div class="meter"><i class="'+cls+'" style="width:'+wr+'%"></i></div>'
+      +'<span class="bdval">'+wr+'% · '+g.n+'t · '+money(g.pnl)+'</span></div>';
+  }).join('');
+}
+function bucket(){ return {n:0,win:0,dec:0,pnl:0}; }
+function push(g,k,t){ if(!g[k])g[k]=bucket(); g[k].n++; g[k].pnl+=(+t.pnl||0); if(t.res!=='BREAKEVEN'){g[k].dec++; if(t.res==='WIN')g[k].win++;} }
+
+function renderStats(){
+  const T=allTrades(), keys=closedKeys();
+  document.getElementById('s-days').textContent=keys.length;
+  document.getElementById('s-trades').textContent=T.length;
+  const net=T.reduce((s,x)=>s+(+x.pnl||0),0);
+  document.getElementById('s-net').textContent=money(net);
+  document.getElementById('s-net-r').className='rail '+(net<0?'bad':net>0?'good':'');
+  const V=T.reduce((s,x)=>s+x.flags.length,0);
+  document.getElementById('s-viol').textContent=V;
+  document.getElementById('s-viol-r').className='rail '+(V?'bad':'good');
+  document.getElementById('conf-warn').textContent=T.length<100?'sample too small — '+T.length+' trades':T.length+' trades';
+
+  const gc={},gw={},gs={},gz={},gv={},gg={};
+  T.forEach(t=>{
+    push(gc,t.conf,t);
+    push(gw,t.window,t);
+    push(gs,t.streakBefore===0?'fresh':t.streakBefore+' loss'+(t.streakBefore>1?'es':''),t);
+    push(gz,t.qty+' contract'+(t.qty>1?'s':''),t);
+    push(gg,'grade '+(t.grade||'—'),t);
+    t.flags.forEach(f=>{ if(!gv[f])gv[f]=bucket(); gv[f].n++; gv[f].pnl+=(+t.pnl||0); if(t.res!=='BREAKEVEN'){gv[f].dec++; if(t.res==='WIN')gv[f].win++;} });
+  });
+  const order=['6/6','5/6','4/6','3/6','2/6 or less'], oc={};
+  order.forEach(k=>{ if(gc[k]) oc[k]=gc[k]; });
+  bdRows('bd-conf',oc);
+  const wo={}; W.forEach(w=>{ if(gw[w.n]) wo[w.n]=gw[w.n]; }); bdRows('bd-win',wo);
+  bdRows('bd-streak',gs); bdRows('bd-size',gz); bdRows('bd-viol',gv); bdRows('bd-grade',gg);
+}
+
+/* ---------- ACTIONS ---------- */
+function tog(i){ const d=day(); d.esg[i]=!d.esg[i]; recompute(d); save(); }
+
+function addTrade(){
+  const d=day();
+  const mins=parseMins(document.getElementById('t-time').value) ?? (VIEW===etDate()?etMins():600);
+  const t={mins,dir:document.getElementById('t-dir').value,qty:Math.max(1,+document.getElementById('t-qty').value||1),
+    conf:document.getElementById('t-conf').value,res:document.getElementById('t-res').value,
+    pnl:+document.getElementById('t-pnl').value||0,note:document.getElementById('t-note').value.trim(),
+    window:'',flags:[],streakBefore:0};
+  if(t.res==='LOSS'&&t.pnl>0) t.pnl=-t.pnl;
+  d.trades.push(t); recompute(d);
+  ['t-pnl','t-note','t-time'].forEach(id=>document.getElementById(id).value='');
+  save();
+}
+function delTrade(i){ const d=day(); d.trades.splice(i,1); recompute(d); save(); }
+function closeDay(){
+  const d=day();
+  if(!d.grade){ alert('Set a process grade first. The grade is the point — P&L is already recorded.'); return; }
+  d.closed=true; save();
+}
+
+/* ---------- DATA ---------- */
+function q(s){ s=String(s??''); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function exportCSV(){
+  const keys=Object.keys(DB.days).sort();
+  const head=['date','day_no','time_et','window','direction','contracts','confluence','result','pnl','loss_streak_before','violation_count','violations','panel_f','vix_regime','esg_score','session_grade','session_note','trade_note'];
+  const rows=[head.join(',')]; let n=0;
+  keys.forEach(k=>{
+    const d=DB.days[k]; if(!d.closed&&!d.trades.length) return;
+    n++; const esg=(d.esg||[]).filter(Boolean).length;
+    if(!d.trades.length){ rows.push([k,n,'','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,q(d.note),''].join(',')); }
+    d.trades.forEach(t=>rows.push([k,n,fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),t.streakBefore,t.flags.length,q(t.flags.join(' | ')),d.panelF,d.vix,esg,d.grade,q(d.note),q(t.note)].join(',')));
+  });
+  dl(rows.join('\n'),'text/csv','edgeiq_journal_'+etDate()+'.csv');
+}
+function backup(){
+  DB.lastBackup=etDate();
+  dl(JSON.stringify(DB),'application/json','edgeiq_journal_backup_'+etDate()+'.json');
+  save();
+}
+function doRestore(inp){
+  const f=inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const o=JSON.parse(r.result);
+      if(!o||!o.days) throw 0;
+      const mine=Object.keys(DB.days).length;
+      if(mine && !confirm('This replaces the '+mine+' day(s) currently in this browser. Continue?')) return;
+      DB=o; if(!DB.days)DB.days={}; VIEW=etDate(); save();
+    }catch(e){ alert('That file is not a journal backup. Pick the edgeiq_journal_backup_*.json file.'); }
+  };
+  r.readAsText(f); inp.value='';
+}
+function dl(txt,type,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type})); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+}
+function wipe(){
+  if(!confirm('This deletes every logged day. There is no undo. Save a backup first if you need the data.')) return;
+  DB={days:{},lastBackup:DB.lastBackup}; VIEW=etDate(); save();
+}
+
+/* ---------- PERSIST ---------- */
+async function save(){ await S.set(KEY,JSON.stringify(DB)); render(); }
+async function load(){
+  const raw=await S.get(KEY);
+  if(raw){ try{ DB=JSON.parse(raw)||{days:{}}; }catch(e){ DB={days:{}}; } }
+  if(!DB.days) DB.days={};
+  Object.keys(DB.days).forEach(k=>{const d=DB.days[k];d.trades=d.trades||[];d.esg=d.esg||[false,false,false];recompute(d);});
+  render();
+}
+
+['f-panelf','f-vix'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
+  const d=day(); if(id==='f-panelf')d.panelF=e.target.value; else d.vix=e.target.value; recompute(d); save();
+}));
+['dd-grade','dd-note'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
+  const d=day(); if(id==='dd-grade')d.grade=e.target.value; else d.note=e.target.value; save();
+}));
+
+setInterval(()=>{
+  document.getElementById('c-clock').textContent=fmtET();
+  const w=windowAt(etMins()), kz=document.getElementById('c-kz');
+  kz.textContent=w.n; kz.className='chip '+(w.ok?'kz-live':'kz-block');
+  preflight();
+},20000);
+
+load();
+</script>
+</body>
+</html>
