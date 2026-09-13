@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v2</title>
+<title>EDGEIQ — Journal v3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -197,14 +197,15 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div id="preflight"></div>
     <div class="grid g4" style="margin-bottom:7px">
       <div><label class="lbl" for="t-time">TIME ET</label><input class="inp" id="t-time" placeholder="10:17"/></div>
+      <div><label class="lbl" for="t-ins">INSTRUMENT</label><select class="sel" id="t-ins"><option>MNQ</option><option>NQ</option><option>MES</option><option>ES</option></select></div>
       <div><label class="lbl" for="t-dir">DIRECTION</label><select class="sel" id="t-dir"><option>LONG</option><option>SHORT</option></select></div>
       <div><label class="lbl" for="t-qty">CONTRACTS</label><input class="inp" id="t-qty" type="number" min="1" max="20" value="1"/></div>
-      <div><label class="lbl" for="t-conf">CONFLUENCE</label><select class="sel" id="t-conf"><option>6/6</option><option>5/6</option><option>4/6</option><option>3/6</option><option>2/6 or less</option></select></div>
     </div>
-    <div class="grid g3" style="margin-bottom:7px">
+    <div class="grid g4" style="margin-bottom:7px">
+      <div><label class="lbl" for="t-conf">CONFLUENCE</label><select class="sel" id="t-conf"><option>6/6</option><option>5/6</option><option>4/6</option><option>3/6</option><option>2/6 or less</option></select></div>
       <div><label class="lbl" for="t-res">RESULT</label><select class="sel" id="t-res"><option>WIN</option><option>LOSS</option><option>BREAKEVEN</option></select></div>
       <div><label class="lbl" for="t-pnl">P&amp;L $</label><input class="inp" id="t-pnl" type="number" step="0.5" placeholder="47.50"/></div>
-      <div><label class="lbl" for="t-note">ONE LINE — WHY YOU TOOK IT</label><input class="inp" id="t-note" placeholder="FVG retest after sweep"/></div>
+      <div><label class="lbl" for="t-note">WHY YOU TOOK IT</label><input class="inp" id="t-note" placeholder="FVG retest after sweep"/></div>
     </div>
     <button class="btn" onclick="addTrade()">LOG TRADE</button>
   </div>
@@ -265,6 +266,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="card-h"><div class="card-t">WHAT THE DATA SAYS SO FAR</div><div class="card-n" id="conf-warn">—</div></div>
     <div class="bd"><div class="bd-t">WIN RATE BY CONFLUENCE SCORE</div><div id="bd-conf"></div></div>
     <div class="bd"><div class="bd-t">WIN RATE BY WINDOW</div><div id="bd-win"></div></div>
+    <div class="bd"><div class="bd-t">WIN RATE BY INSTRUMENT</div><div id="bd-ins"></div></div>
     <div class="bd"><div class="bd-t">WIN RATE BY LOSS STREAK ENTERING THE TRADE</div><div id="bd-streak"></div></div>
     <div class="bd"><div class="bd-t">WIN RATE BY CONTRACT SIZE</div><div id="bd-size"></div></div>
     <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
@@ -286,8 +288,8 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <input type="file" id="restore" accept=".json" style="display:none" onchange="doRestore(this)"/>
   </div>
   <div class="card">
-    <div class="card-h"><div class="card-t">EXCEL HANDOFF</div><div class="card-n">system of record</div></div>
-    <div class="help" style="margin-top:0">Export CSV, open the EDGEIQ_Journal workbook, and paste into the TRADES tab starting at A2. Column order matches exactly. The dashboard recalculates itself. Paste over the whole range each time rather than appending — the export is always the full history, not a delta.</div>
+    <div class="card-h"><div class="card-t">EXCEL HANDOFF</div><div class="card-n">FUTURES LOG tab, cell A5</div></div>
+    <div class="help" style="margin-top:0">Export CSV, open EDGEIQ_Master_Journal_v4.xlsx, go to the FUTURES LOG tab and paste at cell A5. Column order matches exactly, A through S. Paste over the whole block each time — the export is always full history, never a delta, so appending double-counts every prior day. DASHBOARD, BEHAVIOR and DAILY recalculate themselves.</div>
   </div>
   <div class="card">
     <div class="card-h"><div class="card-t">DANGER</div><div class="card-n">no undo</div></div>
@@ -310,7 +312,7 @@ const S={
     try{ localStorage.setItem(k,v); }catch(e){ MEM[k]=v; }
   }
 };
-const KEY='edgeiq_journal_v2';
+const KEY='edgeiq_journal_v2';   // same key as v2 — existing data carries over
 
 let DB={days:{},lastBackup:null};
 let VIEW=etDate();
@@ -445,7 +447,7 @@ function render(){
   const rows=document.getElementById('rows');
   rows.innerHTML=d.trades.length?d.trades.map((x,i)=>{
     const cls=x.res==='WIN'?'win':x.res==='LOSS'?'loss':'be';
-    return '<div class="tr'+(x.flags.length?' flagged':'')+'"><span>'+fmtMins(x.mins)+'</span><span>'+x.dir+'</span><span>'+x.qty+'</span><span class="'+cls+'">'+money(+x.pnl||0)+'</span><span class="c5">'+x.conf+'</span><span>'+x.window+(x.flags.length?'<div class="flags">'+x.flags.join(' · ')+'</div>':'')+'</span><button class="del" title="Delete" onclick="delTrade('+i+')">×</button></div>';
+    return '<div class="tr'+(x.flags.length?' flagged':'')+'"><span>'+fmtMins(x.mins)+'</span><span>'+x.dir+'</span><span>'+x.qty+'</span><span class="'+cls+'">'+money(+x.pnl||0)+'</span><span class="c5">'+x.conf+'</span><span>'+x.ins+' · '+x.window+(x.flags.length?'<div class="flags">'+x.flags.join(' · ')+'</div>':'')+'</span><button class="del" title="Delete" onclick="delTrade('+i+')">×</button></div>';
   }).join(''):'<div class="empty">No trades on this day.<br>A zero-trade day still counts toward the 30 — close it out below.</div>';
 
   document.getElementById('grade-hint').textContent=viol>0?viol+' violation'+(viol>1?'s':'')+' logged — a C or D unless you can defend it':'No violations logged';
@@ -518,10 +520,11 @@ function renderStats(){
   document.getElementById('s-viol-r').className='rail '+(V?'bad':'good');
   document.getElementById('conf-warn').textContent=T.length<100?'sample too small — '+T.length+' trades':T.length+' trades';
 
-  const gc={},gw={},gs={},gz={},gv={},gg={};
+  const gc={},gw={},gs={},gz={},gv={},gg={},gi={};
   T.forEach(t=>{
     push(gc,t.conf,t);
     push(gw,t.window,t);
+    push(gi,t.ins||'MNQ',t);
     push(gs,t.streakBefore===0?'fresh':t.streakBefore+' loss'+(t.streakBefore>1?'es':''),t);
     push(gz,t.qty+' contract'+(t.qty>1?'s':''),t);
     push(gg,'grade '+(t.grade||'—'),t);
@@ -531,6 +534,7 @@ function renderStats(){
   order.forEach(k=>{ if(gc[k]) oc[k]=gc[k]; });
   bdRows('bd-conf',oc);
   const wo={}; W.forEach(w=>{ if(gw[w.n]) wo[w.n]=gw[w.n]; }); bdRows('bd-win',wo);
+  const io={}; ['MNQ','NQ','MES','ES'].forEach(k=>{ if(gi[k]) io[k]=gi[k]; }); bdRows('bd-ins',io);
   bdRows('bd-streak',gs); bdRows('bd-size',gz); bdRows('bd-viol',gv); bdRows('bd-grade',gg);
 }
 
@@ -540,7 +544,7 @@ function tog(i){ const d=day(); d.esg[i]=!d.esg[i]; recompute(d); save(); }
 function addTrade(){
   const d=day();
   const mins=parseMins(document.getElementById('t-time').value) ?? (VIEW===etDate()?etMins():600);
-  const t={mins,dir:document.getElementById('t-dir').value,qty:Math.max(1,+document.getElementById('t-qty').value||1),
+  const t={mins,ins:document.getElementById('t-ins').value,dir:document.getElementById('t-dir').value,qty:Math.max(1,+document.getElementById('t-qty').value||1),
     conf:document.getElementById('t-conf').value,res:document.getElementById('t-res').value,
     pnl:+document.getElementById('t-pnl').value||0,note:document.getElementById('t-note').value.trim(),
     window:'',flags:[],streakBefore:0};
@@ -560,13 +564,13 @@ function closeDay(){
 function q(s){ s=String(s??''); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function exportCSV(){
   const keys=Object.keys(DB.days).sort();
-  const head=['date','day_no','time_et','window','direction','contracts','confluence','result','pnl','loss_streak_before','violation_count','violations','panel_f','vix_regime','esg_score','session_grade','session_note','trade_note'];
+  const head=['date','day_no','instrument','time_et','window','direction','contracts','confluence','result','pnl','loss_streak_before','violation_count','violations','panel_f','vix_regime','esg_score','session_grade','session_note','trade_note'];
   const rows=[head.join(',')]; let n=0;
   keys.forEach(k=>{
     const d=DB.days[k]; if(!d.closed&&!d.trades.length) return;
     n++; const esg=(d.esg||[]).filter(Boolean).length;
-    if(!d.trades.length){ rows.push([k,n,'','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,q(d.note),''].join(',')); }
-    d.trades.forEach(t=>rows.push([k,n,fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),t.streakBefore,t.flags.length,q(t.flags.join(' | ')),d.panelF,d.vix,esg,d.grade,q(d.note),q(t.note)].join(',')));
+    if(!d.trades.length){ rows.push([k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,q(d.note),''].join(',')); }
+    d.trades.forEach(t=>rows.push([k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),t.streakBefore,t.flags.length,q(t.flags.join(' | ')),d.panelF,d.vix,esg,d.grade,q(d.note),q(t.note)].join(',')));
   });
   dl(rows.join('\n'),'text/csv','edgeiq_journal_'+etDate()+'.csv');
 }
@@ -605,7 +609,7 @@ async function load(){
   const raw=await S.get(KEY);
   if(raw){ try{ DB=JSON.parse(raw)||{days:{}}; }catch(e){ DB={days:{}}; } }
   if(!DB.days) DB.days={};
-  Object.keys(DB.days).forEach(k=>{const d=DB.days[k];d.trades=d.trades||[];d.esg=d.esg||[false,false,false];recompute(d);});
+  Object.keys(DB.days).forEach(k=>{const d=DB.days[k];d.trades=d.trades||[];d.trades.forEach(t=>{if(!t.ins)t.ins='MNQ';});d.esg=d.esg||[false,false,false];recompute(d);});
   render();
 }
 
