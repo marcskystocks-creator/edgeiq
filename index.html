@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.1</title>
+<title>EDGEIQ — Journal v4.2.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -102,6 +102,10 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 .del:hover{color:var(--r1);}
 .empty{padding:22px 12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gy);line-height:1.6;}
 
+.xth,.xtr{display:grid;grid-template-columns:52px 40px 34px 1fr 88px 52px 26px;gap:4px;padding:7px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;align-items:center;}
+.xth{background:var(--bg3);color:var(--gy);font-size:8px;letter-spacing:1.2px;}
+.xtr{border-top:1px solid var(--b1);color:var(--lt);}
+.xtr.worked{background:rgba(255,45,85,.06);}
 .lth,.ltr{display:grid;grid-template-columns:88px 34px 40px 78px 44px 40px 28px 1fr;gap:5px;padding:7px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;align-items:center;}
 .lth{background:var(--bg3);color:var(--gy);font-size:8px;letter-spacing:1.2px;}
 .ltr{border-top:1px solid var(--b1);color:var(--lt);cursor:pointer;}
@@ -139,6 +143,8 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
   .lth,.ltr{grid-template-columns:76px 28px 36px 70px 38px 26px;}
   .lth span:nth-child(6),.ltr .l6,.lth span:nth-child(8),.ltr .l8{display:none;}
   .bdrow{grid-template-columns:110px 1fr 104px;}
+  .xth,.xtr{grid-template-columns:48px 34px 28px 1fr 56px 24px;}
+  .xth span:nth-child(6),.xtr .x6{display:none;}
   .btn-row3{grid-template-columns:1fr;}
 }
 </style>
@@ -313,6 +319,22 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       </select></div>
     </div>
 
+    <div class="grid g4" style="margin-bottom:4px">
+      <div><label class="lbl" for="t-mae">HEAT — MAE (PTS)</label><input class="inp" id="t-mae" type="number" step="0.25" min="0" placeholder="4.25"/></div>
+      <div><label class="lbl" for="t-mfe">BEST — MFE (PTS)</label><input class="inp" id="t-mfe" type="number" step="0.25" min="0" placeholder="28.00"/></div>
+      <div><label class="lbl" for="t-run">RAN ON AFTER EXIT (PTS)</label><input class="inp" id="t-run" type="number" step="0.25" min="0" placeholder="11.50"/></div>
+      <div><label class="lbl">DERIVED</label><div class="inp" id="t-derived" style="color:var(--gy);white-space:nowrap;overflow:hidden">—</div></div>
+    </div>
+    <div class="pf warn" style="margin-top:0;margin-bottom:7px">
+      MEASUREMENT PROTOCOL — apply it the same way every single time<br>
+      · <b>Read it off the 1-MINUTE chart, WICKS not closes.</b> A 5-minute candle hides the spike that would have taken your stop, and that spike is the whole point of MAE.<br>
+      · <b>MAE</b> — worst price against you, in points from your entry fill. <b>MFE</b> — best price in your favour. Both measured <b>entry fill to exit fill</b>, nothing before, nothing after.<br>
+      · <b>RAN ON</b> — furthest it went your way <b>after</b> you were out. Window closes <b>30 minutes after your exit, or at the end of the killzone you traded in, whichever comes first.</b> Exit 10:46 in Silver Bullet &rarr; measure to 11:00, not 11:16.<br>
+      · <b>Log it even when the target hit</b> — that is the case it matters most. Target hit with a long run means the target is too tight; target hit and it reverses means the target was right. You cannot tell those apart without this number.<br>
+      · <b>If it never went further your way, type 0.</b> Zero is a finding. Blank is missing data.<br>
+      · All three are <b>positive</b> numbers. <b>Never change this rule mid-collection</b> — these figures are only used comparatively, so one rule applied consistently beats a better rule applied unevenly.
+    </div>
+
     <div style="margin-bottom:7px">
       <label class="lbl" for="t-note">NOTE — anything the dropdowns cannot say (optional)</label>
       <input class="inp" id="t-note" placeholder="second entry after the first stopped at breakeven"/>
@@ -328,6 +350,65 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="tbl">
       <div class="th"><span>IN&ndash;OUT</span><span>DIR</span><span>QTY</span><span>HOLD</span><span>P&amp;L</span><span>P/F2</span><span>SETUP · WINDOW / FLAGS</span><span></span></div>
       <div id="rows"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><div class="card-t">SETUPS YOU PASSED ON</div><div class="card-n" id="pass-sum">—</div></div>
+    <div class="help" style="margin-top:0">Every setup you saw and did not take. <b style="color:var(--y1)">This is the half of the data a journal normally throws away</b> — without it, every win rate in BREAKDOWN is measured only on trades you already liked, which is not a measurement of the system. Log the pass, then check later what price actually did.</div>
+    <div class="grid g4" style="margin-bottom:7px;margin-top:10px">
+      <div><label class="lbl" for="x-time">TIME ET</label><input class="inp" id="x-time" placeholder="10:34"/></div>
+      <div><label class="lbl" for="x-ins">INSTRUMENT</label><select class="sel" id="x-ins"><option>MNQ</option><option>NQ</option><option>MES</option><option>ES</option></select></div>
+      <div><label class="lbl" for="x-dir">WOULD HAVE BEEN</label><select class="sel" id="x-dir"><option>LONG</option><option>SHORT</option></select></div>
+      <div><label class="lbl" for="x-conf">PANEL P AT THE TIME</label><select class="sel" id="x-conf"><option value="">not recorded</option><option>6/6</option><option>5/6</option><option>4/6</option><option>3/6</option><option>2/6 or less</option></select></div>
+    </div>
+    <div class="grid g2" style="margin-bottom:7px">
+      <div>
+        <label class="lbl" for="x-why">WHY YOU DID NOT TAKE IT</label>
+        <select class="sel" id="x-why">
+          <option value="">not set</option>
+          <optgroup label="THE SYSTEM STOPPED YOU">
+            <option>Below minimum confluence</option>
+            <option>Panel F veto / PRICE LIE</option>
+            <option>Blocked window</option>
+            <option>Size cap was 0</option>
+            <option>Lockout active</option>
+            <option>Daily loss limit reached</option>
+            <option>Wrong half of the range</option>
+            <option>Stop too wide for the risk budget</option>
+          </optgroup>
+          <optgroup label="THE MARKET STOPPED YOU">
+            <option>No trigger ever appeared</option>
+            <option>Missed the entry — too slow</option>
+            <option>Spread or speed made it untradeable</option>
+          </optgroup>
+          <optgroup label="YOU STOPPED YOU">
+            <option value="DISCRETION">Chose not to — discretion, rules allowed it</option>
+            <option value="HESITATED">Hesitated, then it was gone</option>
+            <option value="DISTRACTED">Not at the screen</option>
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="x-out">WHAT PRICE DID NEXT</label>
+        <select class="sel" id="x-out">
+          <option value="">not checked yet</option>
+          <option value="WORKED">Would have hit the target</option>
+          <option value="PARTIAL">Would have worked partly</option>
+          <option value="STOPPED">Would have stopped out</option>
+          <option value="CHOP">Chopped — neither</option>
+          <option value="UNKNOWN">Never resolved in the window</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-bottom:7px">
+      <div><label class="lbl" for="x-pts">POINTS IT WOULD HAVE MADE OR LOST</label><input class="inp" id="x-pts" type="number" step="0.25" placeholder="18.25 or -12.00"/></div>
+      <div><label class="lbl" for="x-note">SETUP / NOTE</label><input class="inp" id="x-note" placeholder="BISI retest at 0.705, F2 disagreed"/></div>
+    </div>
+    <button class="btn sec" onclick="addPass()">LOG THE PASS</button>
+    <div class="tbl" style="margin-top:10px">
+      <div class="xth"><span>TIME</span><span>DIR</span><span>P</span><span>WHY</span><span>NEXT</span><span>PTS</span><span></span></div>
+      <div id="passrows"></div>
     </div>
   </div>
 
@@ -437,6 +518,11 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">WIN RATE BY LOSS STREAK ENTERING THE TRADE</div><div id="bd-streak"></div></div>
     <div class="bd"><div class="bd-t">WIN RATE BY CONTRACT SIZE</div><div id="bd-size"></div></div>
     <div class="bd"><div class="bd-t">WIN RATE BY HOLD TIME</div><div id="bd-hold"></div></div>
+    <div class="bd"><div class="bd-t">HEAT TAKEN BEFORE IT WORKED — THE STOP-SETTING NUMBER</div><div id="bd-heat"></div></div>
+    <div class="bd"><div class="bd-t">WIN RATE BY HEAT TAKEN (MAE AS A FRACTION OF RISK)</div><div id="bd-maeband"></div></div>
+    <div class="bd"><div class="bd-t">HOW MUCH OF THE MOVE YOU KEPT, BY EXIT TYPE</div><div id="bd-capture"></div></div>
+    <div class="bd"><div class="bd-t">PASSED SETUPS — SHARE THAT WOULD HAVE WORKED, BY REASON</div><div id="bd-pass"></div></div>
+    <div class="bd"><div class="bd-t">TAKEN vs PASSED AT THE SAME PANEL P SCORE</div><div id="bd-tvp"></div></div>
     <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
     <div class="bd"><div class="bd-t">THE FIX THAT KEEPS COMING BACK</div><div id="bd-fix"></div></div>
     <div class="bd"><div class="bd-t">PROCESS GRADE vs MONEY</div><div id="bd-grade"></div></div>
@@ -518,7 +604,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="card-h"><div class="card-t">EXCEL HANDOFF</div><div class="card-n">FUTURES LOG tab, cell A5</div></div>
     <div id="copy-status" class="pf ok" style="display:none"></div>
     <div class="help" style="margin-top:0"><b>Copy for Excel</b> puts every row on the clipboard as tab-separated text. Open EDGEIQ_Master_Journal_v4.xlsx, go to FUTURES LOG, tap cell A5, paste. Excel splits it into columns A–S on its own — no file to download, no Text to Columns.</div>
-    <div class="pf warn" style="margin-top:9px">THIS EXPORT IS 19 COLUMNS, A–S, ON PURPOSE<br>· U, V and W in that sheet are formulas — DAY P&amp;L RUNNING, LOSS LIMIT REMAINING, CUMULATIVE P&amp;L<br>· a wider paste at A5 would overwrite all three and break the workbook<br>· the v4 fields go in FULL EXPORT below instead</div>
+    <div class="pf warn" style="margin-top:9px">THIS EXPORT IS 19 COLUMNS, A–S, ON PURPOSE<br>· U, V and W in that sheet are formulas — DAY P&amp;L RUNNING, LOSS LIMIT REMAINING, CUMULATIVE P&amp;L<br>· a wider paste at A5 would overwrite all three and break the workbook<br>· every field added after v3 goes in FULL EXPORT below instead</div>
     <div class="btn-row">
       <button class="btn acc" onclick="copyForExcel()">COPY FOR EXCEL</button>
       <button class="btn sec" onclick="exportCSV()">DOWNLOAD A–S CSV</button>
@@ -529,11 +615,16 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 
   <div class="card">
     <div class="card-h"><div class="card-t">FULL EXPORT</div><div class="card-n">all 31 columns · archive and analysis</div></div>
-    <div class="help" style="margin-top:0">Everything the journal holds, including the v4 fields the Excel sheet has no home for: time_out, hold_min, setup, trigger, location, f2_at_entry, stop_pts, risk_usd, risk_pct_limit, exit_type, open_before, day_ceiling. <b>Do not paste this into FUTURES LOG at A5.</b> Keep it alongside the workbook, or paste it into a new blank sheet.</div>
+    <div class="help" style="margin-top:0">Everything the journal holds — 39 columns, including the fields the Excel sheet has no home for: time_out, hold_min, setup, trigger, location, f2_at_entry, stop_pts, risk_usd, risk_pct_limit, exit_type, open_before, day_ceiling, mae_pts, mfe_pts, ran_on_pts, points, r_multiple, mae_in_r, stop_headroom, capture_pct. <b>Do not paste this into FUTURES LOG at A5.</b> Keep it alongside the workbook, or paste it into a new blank sheet.</div>
     <div class="btn-row">
       <button class="btn acc" onclick="exportFull()">DOWNLOAD FULL CSV</button>
       <button class="btn sec" onclick="copyFull()">COPY FULL FOR A BLANK SHEET</button>
     </div>
+    <div class="btn-row" style="margin-top:7px">
+      <button class="btn sec" onclick="exportPasses()">DOWNLOAD NO-TRADE LOG CSV</button>
+      <div></div>
+    </div>
+    <div class="help">The no-trade log exports separately — it is one row per setup you passed on, not per trade, so it cannot share the trade table's columns.</div>
   </div>
 
   <div class="card">
@@ -594,7 +685,7 @@ const KEY='edgeiq_journal_v2';   // same key as v2/v3 — existing data carries 
 let DB={days:{},lastBackup:null};
 let VIEW=etDate();
 
-function blankDay(d){return {date:d,panelF:'',vix:'',esg:[false,false,false],grade:'',fix:'',note:'',trades:[],closed:false};}
+function blankDay(d){return {date:d,panelF:'',vix:'',esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -647,7 +738,7 @@ function ceilingFor(d){
    violation: it counts, and it drops the ceiling to base for the rest of the day. */
 const SOFT_FLAGS=['F2 NOT CHECKED','LOCATION NOT RECORDED','SETUP NOT RECORDED',
                   'NO EXIT TIME','EXIT TYPE NOT RECORDED','NO STOP LOGGED',
-                  'PANEL P NOT RECORDED'];
+                  'PANEL P NOT RECORDED','EXCURSION NOT RECORDED'];
 function isHard(f){ return SOFT_FLAGS.indexOf(String(f).split(' — ')[0])<0; }
 function hardCount(t){ return (t.flags||[]).filter(isHard).length; }
 function softCount(t){ return (t.flags||[]).filter(f=>!isHard(f)).length; }
@@ -772,6 +863,26 @@ function analyze(t,prior,d,openBefore){
   if(t.outMins==null) f.push('NO EXIT TIME');
   if(!t.exit) f.push('EXIT TYPE NOT RECORDED');
 
+  /* ── EXCURSIONS ───────────────────────────────────────────────────────────
+     MAE is heat taken; MFE is the best the trade ever offered. Together with
+     the stop they are the only way to ask whether the stop was the right size
+     and whether the exit was the right exit. Without them the log holds one
+     outcome per trade and can optimise nothing.                              */
+  const mae=+t.mae||0, mfe=+t.mfe||0, run=+t.postRun||0;
+  const qty=+t.qty||0;
+  const ptsGained=(qty>0)?((+t.pnl||0)/(pv(t.ins)*qty)):0;
+  const rMult   = stop>0 ? ptsGained/stop : null;
+  const maeR    = stop>0 ? mae/stop       : null;
+  const headroom= stop>0 ? stop-mae       : null;
+  const capture = (mfe>0&&ptsGained>0) ? Math.min(1,ptsGained/mfe) : null;
+
+  if(!mae&&!mfe) f.push('EXCURSION NOT RECORDED');
+  /* Heat deeper than the stop, on a trade that did not stop out, means the
+     stop was widened or moved — or a number is wrong. Either way it is the
+     one rule break a journal otherwise cannot see. */
+  if(stop>0&&mae>stop+CFG.TICK_SIZE&&t.exit!=='Initial stop hit')
+    f.push('MAE '+mae+' EXCEEDS THE '+stop+'-PT STOP — the stop was moved, or a number is wrong');
+
   // ── STREAK / LOCKOUT
   let streak=0; for(let i=prior.length-1;i>=0;i--){ if(prior[i].res==='LOSS') streak++; else break; }
   if(streak>=3){
@@ -791,7 +902,8 @@ function analyze(t,prior,d,openBefore){
   if(t.override) f.push('LOGGED OVER AN ACTIVE VETO');
 
   const hold=(t.outMins!=null&&t.outMins>=t.mins)?(t.outMins-t.mins):null;
-  return {window:w.n,flags:f,streakBefore:streak,cap:cap,ceil:ceil,risk:risk,riskPct:riskPct,hold:hold};
+  return {window:w.n,flags:f,streakBefore:streak,cap:cap,ceil:ceil,risk:risk,riskPct:riskPct,hold:hold,
+          pts:ptsGained,rMult:rMult,maeR:maeR,headroom:headroom,capture:capture,run:run};
 }
 
 function recompute(d){
@@ -806,10 +918,12 @@ function recompute(d){
     t.window=a.window; t.flags=a.flags; t.streakBefore=a.streakBefore;
     t.cap=a.cap; t.ceil=a.ceil; t.openBefore=ob;
     t.risk=a.risk; t.riskPct=a.riskPct; t.hold=a.hold;
+    t.pts=a.pts; t.rMult=a.rMult; t.maeR=a.maeR; t.headroom=a.headroom; t.capture=a.capture;
     out.push(t);
   });
   d.hardViol=d.trades.reduce((s,t)=>s+hardCount(t),0);
   d.softViol=d.trades.reduce((s,t)=>s+softCount(t),0);
+  d.passes=(d.passes||[]).sort((a,b)=>a.mins-b.mins);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -836,6 +950,28 @@ function paintQty(){
   sel.innerHTML=h;
   if(cap>=1&&+sel.value>cap) sel.value=String(cap);
   return cap;
+}
+
+/* Live read-out under the excursion row: R, heat as a fraction of risk, how
+   much of the move was kept, and what the stop had left. Recomputed as you
+   type, so a bad number is obvious before the trade is logged. */
+function paintDerived(){
+  const el=document.getElementById('t-derived'); if(!el) return;
+  const stop=+document.getElementById('t-stop').value||0;
+  const mae=Math.abs(+document.getElementById('t-mae').value||0);
+  const mfe=Math.abs(+document.getElementById('t-mfe').value||0);
+  const qty=+document.getElementById('t-qty').value||0;
+  const ins=document.getElementById('t-ins').value;
+  let pnl=+document.getElementById('t-pnl').value||0;
+  if(document.getElementById('t-res').value==='LOSS'&&pnl>0) pnl=-pnl;
+  const pts=(qty>0)?pnl/(pv(ins)*qty):0;
+  const bits=[];
+  if(stop>0) bits.push((pts/stop>=0?'+':'')+(pts/stop).toFixed(2)+'R');
+  if(stop>0&&mae>0) bits.push('heat '+(mae/stop*100).toFixed(0)+'% of risk');
+  if(mfe>0&&pts>0) bits.push('kept '+Math.min(100,Math.round(pts/mfe*100))+'%');
+  if(stop>0&&mae>0) bits.push((stop-mae>=0?'':'OVER ')+Math.abs(stop-mae).toFixed(2)+'pt '+(stop-mae>=0?'spare':'PAST STOP'));
+  el.textContent=bits.length?bits.join(' · '):'—';
+  el.style.color=(stop>0&&mae>stop+CFG.TICK_SIZE)?'var(--r1)':'var(--gy)';
 }
 
 function preflight(){
@@ -968,6 +1104,10 @@ function render(){
     const meta=(x.imported?'<b style="color:var(--acc)">IMPORTED</b> · ':'')
       +(x.setup?x.setup:'no setup')+(x.loc?' · '+x.loc:'')+' · '+x.ins+' · '+x.window
       +(x.risk?' · risk '+money(x.risk)+' ('+Math.round(x.riskPct)+'%)':'')
+      +(x.rMult!=null?' · '+(x.rMult>=0?'+':'')+x.rMult.toFixed(2)+'R':'')
+      +(x.maeR!=null&&x.mae?' · heat '+Math.round(x.maeR*100)+'%':'')
+      +(x.capture!=null?' · kept '+Math.round(x.capture*100)+'%':'')
+      +(x.postRun?' · ran on '+x.postRun+'pt':'')
       +' · <span style="color:var(--y1)">tap to edit</span>';
     return '<div class="tr'+(x.flags.length?' flagged':'')+(i===EDIT_IX?' editing':'')+'">'
       +'<span onclick="editTrade('+i+')" style="cursor:pointer">'+span+'</span>'
@@ -980,6 +1120,26 @@ function render(){
         +(x.flags.length?'<div class="flags">'+x.flags.join(' · ')+'</div>':'')+'</span>'
       +'<button class="del" title="Delete" onclick="delTrade('+i+')">&times;</button></div>';
   }).join(''):'<div class="empty">No trades on this day.<br>A zero-trade day still counts toward the 30 — close it out below.</div>';
+
+  // ── setups passed on
+  const ps=d.passes||[];
+  const decided=ps.filter(x=>x.out&&x.out!=='UNKNOWN');
+  const wouldHave=ps.filter(x=>x.out==='WORKED'||x.out==='PARTIAL').length;
+  document.getElementById('pass-sum').textContent=ps.length
+    ? ps.length+' passed · '+(decided.length?Math.round(wouldHave/decided.length*100)+'% would have worked':'none checked yet')
+    : '—';
+  const OUTLBL={WORKED:'hit target',PARTIAL:'partly',STOPPED:'stopped out',CHOP:'chop',UNKNOWN:'unresolved'};
+  const pr=document.getElementById('passrows');
+  pr.innerHTML=ps.length?ps.map((x,i)=>{
+    const worked=(x.out==='WORKED'||x.out==='PARTIAL');
+    return '<div class="xtr'+(worked?' worked':'')+'">'
+      +'<span>'+fmtMins(x.mins)+'</span><span>'+x.dir+'</span>'
+      +'<span>'+((x.conf||'—').replace('/6',''))+'</span>'
+      +'<span class="setupline">'+(x.why||'no reason logged')+(x.note?'<br>'+x.note:'')+'</span>'
+      +'<span class="'+(worked?'loss':'win')+'">'+(x.out?OUTLBL[x.out]||x.out:'not checked')+'</span>'
+      +'<span class="x6">'+(x.pts?(x.pts>0?'+':'')+x.pts:'—')+'</span>'
+      +'<button class="del" title="Delete" onclick="delPass('+i+')">&times;</button></div>';
+  }).join(''):'<div class="empty">Nothing logged.<br>A day with no passes is a day you took every setup you saw — worth checking that is true.</div>';
 
   document.getElementById('grade-hint').textContent=
     viol>0?viol+' violation'+(viol>1?'s':'')+' logged — a C or D unless you can defend it'
@@ -1048,6 +1208,19 @@ function bdRows(el,groups,noteCount){
       +'<span class="bdval">'+right+'</span></div>';
   }).join('');
 }
+/* A second renderer, for rows that are a statistic rather than a win rate. */
+function bdStat(el,rows,note){
+  const host=document.getElementById(el);
+  if(!rows.length){ host.innerHTML='<div class="bdrow thin"><span>no data yet</span><span></span><span></span></div>'; return; }
+  const max=Math.max.apply(null,rows.map(r=>Math.abs(r.bar||0)))||1;
+  host.innerHTML=rows.map(r=>'<div class="bdrow"><span>'+r.label+'</span>'
+    +'<div class="meter"><i class="'+(r.cls||'')+'" style="width:'+Math.min(100,Math.abs(r.bar||0)/max*100)+'%"></i></div>'
+    +'<span class="bdval">'+r.value+'</span></div>').join('')
+    +(note?'<div class="help">'+note+'</div>':'');
+}
+function median(a){ if(!a.length) return null; const s=a.slice().sort((x,y)=>x-y); const m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; }
+function allPasses(){ const o=[]; Object.keys(DB.days).sort().forEach(k=>(DB.days[k].passes||[]).forEach(x=>o.push(Object.assign({date:k},x)))); return o; }
+
 function bucket(){ return {n:0,win:0,dec:0,pnl:0}; }
 function push(g,k,t){ if(!k&&k!==0) k='—'; if(!g[k])g[k]=bucket(); g[k].n++; g[k].pnl+=(+t.pnl||0); if(t.res!=='BREAKEVEN'){g[k].dec++; if(t.res==='WIN')g[k].win++;} }
 function sortByN(g){ const o={}; Object.keys(g).sort((a,b)=>g[b].n-g[a].n).forEach(k=>o[k]=g[k]); return o; }
@@ -1116,6 +1289,72 @@ function renderStats(){
   bdRows('bd-viol',sortByN(gv));
   bdRows('bd-grade',gg);
 
+  /* ── HEAT: the stop-setting number ──────────────────────────────────────
+     If winners routinely take 4 points of heat and the stop is 25, the stop
+     is not protecting anything — it is only shrinking the size the risk
+     budget allows. This row is what tells you that. */
+  const heatW=T.filter(t=>t.res==='WIN'&&+t.mae>0).map(t=>+t.mae);
+  const heatL=T.filter(t=>t.res==='LOSS'&&+t.mae>0).map(t=>+t.mae);
+  const stops=T.filter(t=>+t.stopPts>0).map(t=>+t.stopPts);
+  const hrows=[];
+  if(heatW.length) hrows.push({label:'median heat — WINNERS',bar:median(heatW),value:median(heatW).toFixed(2)+' pts · '+heatW.length+'t',cls:'hi'});
+  if(heatL.length) hrows.push({label:'median heat — LOSERS', bar:median(heatL),value:median(heatL).toFixed(2)+' pts · '+heatL.length+'t',cls:'lo'});
+  if(heatW.length) hrows.push({label:'WORST heat on a winner',bar:Math.max.apply(null,heatW),value:Math.max.apply(null,heatW).toFixed(2)+' pts'});
+  if(stops.length) hrows.push({label:'median stop you used',bar:median(stops),value:median(stops).toFixed(2)+' pts'});
+  let hnote='';
+  if(heatW.length>=20&&stops.length){
+    const worst=Math.max.apply(null,heatW), ms=median(stops);
+    hnote = worst<ms*0.6
+      ? 'No winner in this sample ever took more than '+worst.toFixed(2)+' points of heat, against a median stop of '+ms.toFixed(2)+'. A stop near '+(Math.ceil(worst)+2)+' points would have held every one of them — and the risk budget would have bought you '+Math.floor(CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100/((Math.ceil(worst)+2)*2))+' contracts instead of '+Math.floor(CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100/(ms*2))+'.'
+      : 'Winners are taking heat close to the stop. The stop is doing real work — do not tighten it to buy size.';
+  }else if(heatW.length){ hnote='Only '+heatW.length+' winners with heat recorded. Not a finding yet — 20 is the floor.'; }
+  bdStat('bd-heat',hrows,hnote);
+
+  const mb={};
+  T.forEach(t=>{ if(t.maeR==null||!(+t.mae>0)) return;
+    const r=t.maeR;
+    push(mb, r<0.25?'under 25% of risk':r<0.5?'25–50%':r<0.75?'50–75%':r<1?'75–100%':'past the stop', t); });
+  const mbo={}; ['under 25% of risk','25–50%','50–75%','75–100%','past the stop'].forEach(k=>{ if(mb[k]) mbo[k]=mb[k]; });
+  bdRows('bd-maeband',mbo);
+
+  const capG={};
+  T.forEach(t=>{ if(t.capture==null) return;
+    const k=t.exit==='PANIC'?'Manual — nerves':(t.exit||'not recorded');
+    if(!capG[k]) capG[k]={s:0,n:0,run:0,rn:0};
+    capG[k].s+=t.capture; capG[k].n++;
+    if(+t.postRun>0){ capG[k].run+=+t.postRun; capG[k].rn++; } });
+  bdStat('bd-capture',Object.keys(capG).sort((a,b)=>capG[b].n-capG[a].n).map(k=>{
+    const g=capG[k], avg=g.s/g.n;
+    return {label:k,bar:avg*100,cls:avg>=0.7?'hi':avg<0.45?'lo':'',
+      value:Math.round(avg*100)+'% kept · '+g.n+'t'+(g.rn?' · left '+(g.run/g.rn).toFixed(1)+'pt':'')};
+  }),'Kept = points taken as a share of the best the trade offered. "Left" is the average further run after the exit. A low share with a long run is an exit problem, not an entry problem.');
+
+  /* ── PASSED SETUPS ─────────────────────────────────────────────────────
+     The half of the distribution a normal journal discards. Grouped by the
+     reason, so a rule that keeps blocking winners and a rule that keeps
+     saving you look different. */
+  const P=allPasses(), pg={};
+  P.forEach(x=>{ if(!x.out||x.out==='UNKNOWN') return;
+    const k=x.why==='DISCRETION'?'Chose not to — discretion':x.why==='HESITATED'?'Hesitated':x.why==='DISTRACTED'?'Not at the screen':(x.why||'no reason logged');
+    if(!pg[k]) pg[k]={n:0,w:0,pts:0};
+    pg[k].n++; if(x.out==='WORKED'||x.out==='PARTIAL'){ pg[k].w++; pg[k].pts+=Math.abs(+x.pts||0); } });
+  bdStat('bd-pass',Object.keys(pg).sort((a,b)=>pg[b].n-pg[a].n).map(k=>{
+    const g=pg[k], pct=Math.round(g.w/g.n*100);
+    return {label:k,bar:pct,cls:pct>=60?'lo':pct<=30?'hi':'',
+      value:pct+'% would have worked · '+g.n};
+  }),'Red is a reason that keeps blocking trades that would have worked; green is a reason earning its keep. A system rule at 60%+ is worth re-examining. Your own discretion at 60%+ is a different problem and a more expensive one.');
+
+  const tvp={};
+  ['6/6','5/6','4/6','3/6','2/6 or less'].forEach(k=>{
+    const taken=T.filter(t=>t.conf===k).length;
+    const passed=P.filter(x=>x.conf===k).length;
+    if(taken||passed) tvp[k]={taken:taken,passed:passed};
+  });
+  bdStat('bd-tvp',Object.keys(tvp).map(k=>{
+    const g=tvp[k], tot=g.taken+g.passed;
+    return {label:k,bar:tot,value:g.taken+' taken · '+g.passed+' passed'+(tot?' · '+Math.round(g.taken/tot*100)+'% taken':'')};
+  }),'Every win rate above is measured only on the taken column. Where the passed column is large, that win rate describes your selection, not the score.');
+
   // THE FIX THAT KEEPS COMING BACK — counts days, not trades
   const gf={};
   Object.keys(DB.days).forEach(k=>{ const d=DB.days[k]; if(d.fix){ if(!gf[d.fix])gf[d.fix]=bucket(); gf[d.fix].n++; } });
@@ -1148,6 +1387,10 @@ function editTrade(i){
   document.getElementById('t-pnl').value=(t.pnl!==undefined?t.pnl:'');
   document.getElementById('t-exit').value=t.exit||'';
   document.getElementById('t-note').value=t.note||'';
+  document.getElementById('t-mae').value=(+t.mae||'')||'';
+  document.getElementById('t-mfe').value=(+t.mfe||'')||'';
+  document.getElementById('t-run').value=(+t.postRun||'')||'';
+  paintDerived();
   paintQty();
   const sel=document.getElementById('t-qty');
   if(!Array.from(sel.options).some(o=>+o.value===+t.qty)){
@@ -1159,7 +1402,7 @@ function editTrade(i){
 }
 function cancelEdit(){
   EDIT_IX=-1;
-  ['t-pnl','t-note','t-time','t-out','t-stop'].forEach(id=>document.getElementById(id).value='');
+  ['t-pnl','t-note','t-time','t-out','t-stop','t-mae','t-mfe','t-run'].forEach(id=>document.getElementById(id).value='');
   render();
 }
 
@@ -1179,6 +1422,9 @@ function addTrade(override){
     setup:document.getElementById('t-setup').value,
     trig:document.getElementById('t-trig').value,
     stopPts:+document.getElementById('t-stop').value||0,
+    mae:Math.abs(+document.getElementById('t-mae').value||0),
+    mfe:Math.abs(+document.getElementById('t-mfe').value||0),
+    postRun:Math.abs(+document.getElementById('t-run').value||0),
     res:document.getElementById('t-res').value,
     pnl:+document.getElementById('t-pnl').value||0,
     exit:document.getElementById('t-exit').value,
@@ -1196,9 +1442,30 @@ function addTrade(override){
     d.trades.push(t);
   }
   recompute(d);
-  ['t-pnl','t-note','t-time','t-out','t-stop'].forEach(id=>document.getElementById(id).value='');
+  ['t-pnl','t-note','t-time','t-out','t-stop','t-mae','t-mfe','t-run'].forEach(id=>document.getElementById(id).value='');
   save();
 }
+/* ---------- SETUPS PASSED ON ---------- */
+function addPass(){
+  const d=day();
+  const mins=parseMins(document.getElementById('x-time').value) ?? (VIEW===etDate()?etMins():600);
+  d.passes=d.passes||[];
+  d.passes.push({
+    mins:mins,
+    ins:document.getElementById('x-ins').value,
+    dir:document.getElementById('x-dir').value,
+    conf:document.getElementById('x-conf').value,
+    why:document.getElementById('x-why').value,
+    out:document.getElementById('x-out').value,
+    pts:+document.getElementById('x-pts').value||0,
+    note:document.getElementById('x-note').value.trim()
+  });
+  ['x-time','x-pts','x-note'].forEach(id=>document.getElementById(id).value='');
+  recompute(d); save();
+}
+function delPass(i){ const d=day(); (d.passes||[]).splice(i,1); recompute(d); save(); }
+function setPassOutcome(i,v){ const d=day(); if(d.passes&&d.passes[i]){ d.passes[i].out=v; save(); } }
+
 function delTrade(i){ const d=day(); d.trades.splice(i,1); if(EDIT_IX===i)EDIT_IX=-1; else if(EDIT_IX>i)EDIT_IX--; recompute(d); save(); }
 function closeDay(){
   const d=day();
@@ -1222,7 +1489,9 @@ function closeDay(){
 const HEAD19=['date','day_no','instrument','time_et','window','direction','contracts','confluence','result','pnl',
   'loss_streak_before','violation_count','violations','panel_f','vix_regime','esg_score','session_grade','session_note','trade_note'];
 const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','f2_at_entry',
-  'stop_pts','risk_usd','risk_pct_limit','exit_type','open_before','day_ceiling']);
+  'stop_pts','risk_usd','risk_pct_limit','exit_type','open_before','day_ceiling',
+  'mae_pts','mfe_pts','ran_on_pts','points','r_multiple','mae_in_r','stop_headroom','capture_pct']);
+const HEADPASS=['date','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* One row builder feeds the file and the clipboard, so the two can never drift
    out of column order. `wide` decides which shape comes back. */
@@ -1234,7 +1503,7 @@ function buildRows(wide){
     const sessNote=[d.fix,d.note].filter(Boolean).join(' — ');
     if(!d.trades.length){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,sessNote,''];
-      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d)]):base);
+      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','']):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -1242,7 +1511,11 @@ function buildRows(wide){
       out.push(wide?base.concat([
         (t.outMins!=null?fmtMins(t.outMins):''),(t.hold!=null?t.hold:''),t.setup||'',t.trig||'',t.loc||'',t.f2||'',
         (+t.stopPts||0),(+t.risk||0).toFixed(2),(+t.riskPct||0).toFixed(1),t.exit||'',
-        (t.openBefore||0),(t.ceil!=null?t.ceil:ceilingFor(d))]):base);
+        (t.openBefore||0),(t.ceil!=null?t.ceil:ceilingFor(d)),
+        (+t.mae||0),(+t.mfe||0),(+t.postRun||0),
+        (t.pts!=null?t.pts.toFixed(2):''),(t.rMult!=null?t.rMult.toFixed(3):''),
+        (t.maeR!=null?t.maeR.toFixed(3):''),(t.headroom!=null?t.headroom.toFixed(2):''),
+        (t.capture!=null?Math.round(t.capture*100):'')]):base);
     });
   });
   return out;
@@ -1253,6 +1526,13 @@ function tsvCell(s){ return String(s??'').replace(/[\t\r\n]+/g,' '); }
 
 function exportCSV(){ dumpCSV(false,'edgeiq_journal_AS_'); }
 function exportFull(){ dumpCSV(true,'edgeiq_journal_FULL_'); }
+function exportPasses(){
+  const rows=[];
+  Object.keys(DB.days).sort().forEach(k=>(DB.days[k].passes||[]).forEach(x=>
+    rows.push([k,fmtMins(x.mins),x.ins||'MNQ',x.dir,x.conf||'',x.why||'',x.out||'',(+x.pts||0),x.note||''])));
+  if(!rows.length){ flashCopy('No passed setups logged yet.',true); return; }
+  dl([HEADPASS.join(',')].concat(rows.map(r=>r.map(q).join(','))).join('\n'),'text/csv','edgeiq_passes_'+etDate()+'.csv');
+}
 function dumpCSV(wide,prefix){
   const rows=buildRows(wide);
   if(!rows.length){ flashCopy('Nothing to export yet. Close out at least one day first.',true); return; }
@@ -1442,7 +1722,7 @@ function parseBrokerCSV(text){
         date:dt, mins:e.mins, outMins:e.lastExitMins,
         ins:e.prod, dir:e.dir>0?'LONG':'SHORT', qty:Math.round(e.qty),
         conf:'', f2:'', loc:'', setup:'', trig:'',
-        stopPts:Math.round(stopPts*4)/4,
+        stopPts:Math.round(stopPts*4)/4, mae:0, mfe:0, postRun:0,
         res: pnl>0.004?'WIN':(pnl<-0.004?'LOSS':'BREAKEVEN'),
         pnl:Math.round(pnl*100)/100,
         exit:exitType,
@@ -1533,6 +1813,7 @@ function migrate(){
   Object.keys(DB.days).forEach(k=>{
     const d=DB.days[k];
     d.trades=d.trades||[];
+    d.passes=d.passes||[];
     d.esg=d.esg||[false,false,false];
     if(d.fix===undefined) d.fix='';
     if(d.note===undefined) d.note='';
@@ -1547,6 +1828,9 @@ function migrate(){
       if(t.stopPts===undefined) t.stopPts=0;
       if(t.override===undefined) t.override=false;
       if(t.imported===undefined) t.imported=false;
+      if(t.mae===undefined)     t.mae=0;
+      if(t.mfe===undefined)     t.mfe=0;
+      if(t.postRun===undefined) t.postRun=0;
       t.qty=Math.max(1,Math.min(CFG.MAX_CONTRACTS,+t.qty||1));
     });
     recompute(d);
@@ -1570,8 +1854,11 @@ async function load(){
   else d.note=e.target.value;
   save();
 }));
-['t-conf','t-ins'].forEach(id=>document.getElementById(id).addEventListener('change',preflight));
-document.getElementById('t-stop').addEventListener('input',preflight);
+['t-conf','t-ins'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{preflight();paintDerived();}));
+document.getElementById('t-stop').addEventListener('input',()=>{preflight();paintDerived();});
+['t-mae','t-mfe','t-run','t-pnl','t-qty','t-res'].forEach(id=>{
+  const e=document.getElementById(id); if(e){ e.addEventListener('input',paintDerived); e.addEventListener('change',paintDerived); }
+});
 
 setInterval(()=>{
   document.getElementById('c-clock').textContent=fmtET();
