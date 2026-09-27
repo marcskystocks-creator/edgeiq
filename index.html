@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.3</title>
+<title>EDGEIQ — Journal v4.4</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -26,6 +26,7 @@ body{background:var(--bg0);color:var(--wh);font-family:'DM Sans',sans-serif;min-
 .chip.ceil.zero{border-color:rgba(255,45,85,.45);background:rgba(255,45,85,.09);color:var(--r1);}
 .chip.lock{border-color:rgba(255,45,85,.55);background:rgba(255,45,85,.12);color:var(--r1);font-weight:600;}
 .chip.lock.clear{border-color:rgba(255,140,0,.5);background:rgba(255,140,0,.1);color:var(--o1);}
+.chip.acct{border-color:rgba(0,229,204,.4);background:rgba(0,229,204,.08);color:var(--cy1);}
 
 .tabs{display:flex;gap:2px;background:var(--bg2);border-bottom:1px solid var(--b1);padding:0 12px;position:sticky;top:39px;z-index:49;overflow-x:auto;}
 .tab{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px;padding:8px 12px;color:var(--gy);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:0;border-left:0;border-right:0;white-space:nowrap;}
@@ -160,6 +161,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
     <div class="chip lock" id="c-lock" style="display:none">LOCK —</div>
+    <div class="chip acct" id="c-acct" style="display:none">ACCT —</div>
     <div class="chip">DAY <b id="c-day">0</b>/30</div>
     <div class="chip" id="c-backup">BACKUP —</div>
   </div>
@@ -197,7 +199,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       </div>
     </div>
 
-    <div class="grid g2" style="margin-bottom:9px">
+    <div class="grid g3" style="margin-bottom:9px">
       <div>
         <label class="lbl" for="f-panelf">PANEL F — LOCKED 9:45</label>
         <select class="sel" id="f-panelf">
@@ -212,6 +214,11 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         <select class="sel" id="f-vix">
           <option value="">not set</option><option>NORMAL</option><option>ELEVATED</option><option>EXTREME</option><option>COMPRESSED</option>
         </select>
+      </div>
+      <div>
+        <label class="lbl" for="f-acct">ACCOUNT</label>
+        <input class="inp" id="f-acct" list="acctlist" placeholder="50K Select eval" autocomplete="off"/>
+        <datalist id="acctlist"></datalist>
       </div>
     </div>
 
@@ -527,6 +534,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">PASSED SETUPS — SHARE THAT WOULD HAVE WORKED, BY REASON</div><div id="bd-pass"></div></div>
     <div class="bd"><div class="bd-t">TAKEN vs PASSED AT THE SAME PANEL P SCORE</div><div id="bd-tvp"></div></div>
     <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
+    <div class="bd"><div class="bd-t">BY ACCOUNT — DOES DISCIPLINE TRAVEL?</div><div id="bd-acct"></div></div>
     <div class="bd"><div class="bd-t">THE FIX THAT KEEPS COMING BACK</div><div id="bd-fix"></div></div>
     <div class="bd"><div class="bd-t">PROCESS GRADE vs MONEY</div><div id="bd-grade"></div></div>
     <div class="help">Any row with fewer than 20 trades is noise, not a finding. It is shown so you can see the sample filling, not so you can act on it. THE FIX THAT KEEPS COMING BACK counts days, not trades — three of the same fix inside thirty days is the pattern, not a bad day.</div>
@@ -618,7 +626,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 
   <div class="card">
     <div class="card-h"><div class="card-t">FULL EXPORT</div><div class="card-n">all 31 columns · archive and analysis</div></div>
-    <div class="help" style="margin-top:0">Everything the journal holds — 39 columns, including the fields the Excel sheet has no home for: time_out, hold_min, setup, trigger, location, f2_at_entry, stop_pts, risk_usd, risk_pct_limit, exit_type, open_before, day_ceiling, mae_pts, mfe_pts, ran_on_pts, points, r_multiple, mae_in_r, stop_headroom, capture_pct. <b>Do not paste this into FUTURES LOG at A5.</b> Keep it alongside the workbook, or paste it into a new blank sheet.</div>
+    <div class="help" style="margin-top:0">Everything the journal holds — 40 columns, including the fields the Excel sheet has no home for: time_out, hold_min, setup, trigger, location, f2_at_entry, stop_pts, risk_usd, risk_pct_limit, exit_type, open_before, day_ceiling, mae_pts, mfe_pts, ran_on_pts, points, r_multiple, mae_in_r, stop_headroom, capture_pct, account. <b style="color:var(--y1)">The account rides here and not in A–S</b> — the Excel sheet's columns are frozen, so everything added after v3 lives in this export. <b>Do not paste this into FUTURES LOG at A5.</b> Keep it alongside the workbook, or paste it into a new blank sheet.</div>
     <div class="btn-row">
       <button class="btn acc" onclick="exportFull()">DOWNLOAD FULL CSV</button>
       <button class="btn sec" onclick="copyFull()">COPY FULL FOR A BLANK SHEET</button>
@@ -689,7 +697,14 @@ const KEY='edgeiq_journal_v2';   // same key as v2/v3 — existing data carries 
 let DB={days:{},lastBackup:null};
 let VIEW=etDate();
 
-function blankDay(d){return {date:d,panelF:'',vix:'',esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false};}
+/* A new day inherits the account from the most recent day that named one.
+   Retyping it every morning is how a field ends up blank for a week. */
+function lastAccount(){
+  const ks=Object.keys(DB.days).sort();
+  for(let i=ks.length-1;i>=0;i--){ const a=DB.days[ks[i]].acct; if(a) return a; }
+  return '';
+}
+function blankDay(d){return {date:d,panelF:'',vix:'',acct:lastAccount(),esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -1128,6 +1143,11 @@ function render(){
 
   document.getElementById('f-panelf').value=d.panelF||'';
   document.getElementById('f-vix').value=d.vix||'';
+  document.getElementById('f-acct').value=d.acct||'';
+  const accts=Array.from(new Set(Object.keys(DB.days).map(k=>DB.days[k].acct).filter(Boolean))).sort();
+  document.getElementById('acctlist').innerHTML=accts.map(a=>'<option value="'+a.replace(/"/g,'&quot;')+'"></option>').join('');
+  const ac=document.getElementById('c-acct');
+  if(d.acct){ ac.style.display=''; ac.textContent='ACCT '+d.acct; } else { ac.style.display='none'; }
   document.getElementById('dd-grade').value=d.grade||'';
   document.getElementById('dd-fix').value=d.fix||'';
   document.getElementById('dd-note').value=d.note||'';
@@ -1258,7 +1278,7 @@ function renderLog(){
 function openDay(k){ VIEW=k; go('session'); render(); }
 
 /* ---------- BREAKDOWN ---------- */
-function allTrades(){ const o=[]; Object.keys(DB.days).sort().forEach(k=>DB.days[k].trades.forEach(t=>o.push(Object.assign({date:k,grade:DB.days[k].grade},t)))); return o; }
+function allTrades(){ const o=[]; Object.keys(DB.days).sort().forEach(k=>DB.days[k].trades.forEach(t=>o.push(Object.assign({date:k,grade:DB.days[k].grade,acct:DB.days[k].acct||''},t)))); return o; }
 
 function bdRows(el,groups,noteCount){
   const host=document.getElementById(el);
@@ -1421,6 +1441,24 @@ function renderStats(){
     return {label:k,bar:tot,value:g.taken+' taken · '+g.passed+' passed'+(tot?' · '+Math.round(g.taken/tot*100)+'% taken':'')};
   }),'Every win rate above is measured only on the taken column. Where the passed column is large, that win rate describes your selection, not the score.');
 
+  /* ── BY ACCOUNT ─────────────────────────────────────────────────────────
+     Execution is supposed to be the same wherever it happens. Where it is not
+     — more violations on an eval than on a funded account, or the reverse —
+     that difference is about the money on the line, not about the market. */
+  const accG={};
+  T.forEach(t=>{
+    const k=t.acct||'not named';
+    if(!accG[k]) accG[k]={n:0,pnl:0,hard:0,qty:0,days:{}};
+    accG[k].n++; accG[k].pnl+=(+t.pnl||0); accG[k].hard+=hardCount(t); accG[k].qty+=(+t.qty||0);
+    accG[k].days[t.date]=1;
+  });
+  bdStat('bd-acct',Object.keys(accG).sort((a,b)=>accG[b].n-accG[a].n).map(k=>{
+    const g=accG[k], nd=Object.keys(g.days).length;
+    const vpd=nd?g.hard/nd:0;
+    return {label:k,bar:g.n,cls:vpd<=0.5?'hi':vpd>=2?'lo':'',
+      value:money(g.pnl)+' · '+g.n+'t · '+(g.n?(g.qty/g.n).toFixed(1):'0')+' avg lot · '+vpd.toFixed(1)+' viol/day'};
+  }),'Violations per day is the column that matters. A gap between accounts is the size of the pressure the money is putting on you.');
+
   // THE FIX THAT KEEPS COMING BACK — counts days, not trades
   const gf={};
   Object.keys(DB.days).forEach(k=>{ const d=DB.days[k]; if(d.fix){ if(!gf[d.fix])gf[d.fix]=bucket(); gf[d.fix].n++; } });
@@ -1556,8 +1594,8 @@ const HEAD19=['date','day_no','instrument','time_et','window','direction','contr
   'loss_streak_before','violation_count','violations','panel_f','vix_regime','esg_score','session_grade','session_note','trade_note'];
 const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','f2_at_entry',
   'stop_pts','risk_usd','risk_pct_limit','exit_type','open_before','day_ceiling',
-  'mae_pts','mfe_pts','ran_on_pts','points','r_multiple','mae_in_r','stop_headroom','capture_pct']);
-const HEADPASS=['date','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
+  'mae_pts','mfe_pts','ran_on_pts','points','r_multiple','mae_in_r','stop_headroom','capture_pct','account']);
+const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* One row builder feeds the file and the clipboard, so the two can never drift
    out of column order. `wide` decides which shape comes back. */
@@ -1569,7 +1607,7 @@ function buildRows(wide){
     const sessNote=[d.fix,d.note].filter(Boolean).join(' — ');
     if(!d.trades.length){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,sessNote,''];
-      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','']):base);
+      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','',d.acct||'']):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -1581,7 +1619,7 @@ function buildRows(wide){
         (+t.mae||0),(+t.mfe||0),(+t.postRun||0),
         (t.pts!=null?t.pts.toFixed(2):''),(t.rMult!=null?t.rMult.toFixed(3):''),
         (t.maeR!=null?t.maeR.toFixed(3):''),(t.headroom!=null?t.headroom.toFixed(2):''),
-        (t.capture!=null?Math.round(t.capture*100):'')]):base);
+        (t.capture!=null?Math.round(t.capture*100):''),(d.acct||'')]):base);
     });
   });
   return out;
@@ -1595,7 +1633,7 @@ function exportFull(){ dumpCSV(true,'edgeiq_journal_FULL_'); }
 function exportPasses(){
   const rows=[];
   Object.keys(DB.days).sort().forEach(k=>(DB.days[k].passes||[]).forEach(x=>
-    rows.push([k,fmtMins(x.mins),x.ins||'MNQ',x.dir,x.conf||'',x.why||'',x.out||'',(+x.pts||0),x.note||''])));
+    rows.push([k,(DB.days[k].acct||''),fmtMins(x.mins),x.ins||'MNQ',x.dir,x.conf||'',x.why||'',x.out||'',(+x.pts||0),x.note||''])));
   if(!rows.length){ flashCopy('No passed setups logged yet.',true); return; }
   dl([HEADPASS.join(',')].concat(rows.map(r=>r.map(q).join(','))).join('\n'),'text/csv','edgeiq_passes_'+etDate()+'.csv');
 }
@@ -1882,6 +1920,7 @@ function migrate(){
     d.passes=d.passes||[];
     d.esg=d.esg||[false,false,false];
     if(d.fix===undefined) d.fix='';
+    if(d.acct===undefined) d.acct='';
     if(d.note===undefined) d.note='';
     d.trades.forEach(t=>{
       if(!t.ins) t.ins='MNQ';
@@ -1910,8 +1949,12 @@ async function load(){
   render();
 }
 
-['f-panelf','f-vix'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
-  const d=day(); if(id==='f-panelf')d.panelF=e.target.value; else d.vix=e.target.value; recompute(d); save();
+['f-panelf','f-vix','f-acct'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
+  const d=day();
+  if(id==='f-panelf')   d.panelF=e.target.value;
+  else if(id==='f-vix') d.vix=e.target.value;
+  else                  d.acct=e.target.value.trim();
+  recompute(d); save();
 }));
 ['dd-grade','dd-fix','dd-note'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
   const d=day();
