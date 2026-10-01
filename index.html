@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.4</title>
+<title>EDGEIQ — Journal v4.5</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -157,6 +157,10 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 <div class="nav">
   <div class="logo">EDGEIQ JOURNAL</div>
   <div class="nav-r">
+    <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
+         this is the only way to tell at a glance whether the new build is live
+         or the browser is serving a cached old one. -->
+    <div class="chip" title="build version">v4.5</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -919,9 +923,16 @@ function analyze(t,prior,d,openBefore){
   const rMult   = stop>0 ? ptsGained/stop : null;
   const maeR    = stop>0 ? mae/stop       : null;
   const headroom= stop>0 ? stop-mae       : null;
-  const capture = (mfe>0&&ptsGained>0) ? Math.min(1,ptsGained/mfe) : null;
+  /* [v4.5] You cannot keep more than the trade ever offered. v4.4 clamped this
+     to 100% and printed a confident, impossible number. Now it refuses to
+     compute and raises a flag — the best detector there is of an excursion
+     typed in the wrong unit. */
+  const mfeBad  = mfe>0 && ptsGained > mfe + CFG.TICK_SIZE;
+  const capture = (mfe>0&&ptsGained>0&&!mfeBad) ? Math.min(1,ptsGained/mfe) : null;
 
   if(!mae&&!mfe) f.push('EXCURSION NOT RECORDED');
+  if(mfeBad) f.push('POINTS '+ptsGained.toFixed(2)+' EXCEED THE MFE OF '+mfe
+                   +' — one of the two is wrong (check points vs ticks: x4)');
   /* Heat deeper than the stop, on a trade that did not stop out, means the
      stop was widened or moved — or a number is wrong. Either way it is the
      one rule break a journal otherwise cannot see. */
@@ -986,16 +997,32 @@ function liveCap(){
     (VIEW===etDate()?etMins():parseMins(document.getElementById('t-time').value)));
 }
 
+/* [v4.5] Options above the cap are LABELLED, never disabled.
+   v4.4 disabled them, which meant that on a day the cap was 1 you could not
+   record having taken 3 — the journal forced a false number into the one field
+   the whole size analysis depends on. The cap's job is to warn and to flag.
+   Making the truth unrecordable is the one thing a journal must never do. */
 function paintQty(){
   const sel=document.getElementById('t-qty');
   const cap=liveCap();
-  const cur=+sel.value||1;
+  const cur=Math.max(1,+sel.value||1);
+  // Go at least as high as whatever is already selected, so an imported 12-lot
+  // can still be displayed even though the ceiling is 10.
+  const top=Math.max(CFG.MAX_CONTRACTS,cur);
+  // A new trade defaults to the cap as guidance. An edit keeps what was stored.
+  const want=(EDIT_IX>=0)?cur:Math.min(cur,Math.max(cap,1));
+  /* At a cap of 0 every size is over the cap, so "over cap of 0" on all ten
+     rows says nothing. Name the real state instead: no trade is permitted, and
+     any number picked is a logged violation. */
+  const tag = (cap<=0) ? '  \u26a0 NO TRADE PERMITTED' : null;
   let h='';
-  for(let i=1;i<=CFG.MAX_CONTRACTS;i++){
-    h+='<option value="'+i+'"'+(i>cap?' disabled':'')+(i===Math.min(cur,Math.max(cap,1))?' selected':'')+'>'+i+(i>cap?' — over cap':'')+'</option>';
+  for(let i=1;i<=top;i++){
+    h+='<option value="'+i+'"'+(i===want?' selected':'')+'>'+i
+      +(i>cap ? (tag!==null?tag:'  \u26a0 over cap of '+cap) : '')+'</option>';
   }
   sel.innerHTML=h;
-  if(cap>=1&&+sel.value>cap) sel.value=String(cap);
+  sel.value=String(want);
+  sel.classList.toggle('req',want>cap);
   return cap;
 }
 
@@ -1015,10 +1042,13 @@ function paintDerived(){
   const bits=[];
   if(stop>0) bits.push((pts/stop>=0?'+':'')+(pts/stop).toFixed(2)+'R');
   if(stop>0&&mae>0) bits.push('heat '+(mae/stop*100).toFixed(0)+'% of risk');
-  if(mfe>0&&pts>0) bits.push('kept '+Math.min(100,Math.round(pts/mfe*100))+'%');
+  if(mfe>0&&pts>0){
+    const k=pts/mfe;
+    bits.push(k>1.001 ? 'KEPT '+Math.round(k*100)+'% — IMPOSSIBLE' : 'kept '+Math.round(k*100)+'%');
+  }
   if(stop>0&&mae>0) bits.push((stop-mae>=0?'':'OVER ')+Math.abs(stop-mae).toFixed(2)+'pt '+(stop-mae>=0?'spare':'PAST STOP'));
   el.textContent=bits.length?bits.join(' · '):'—';
-  el.style.color=(stop>0&&mae>stop+CFG.TICK_SIZE)?'var(--r1)':'var(--gy)';
+  el.style.color=((stop>0&&mae>stop+CFG.TICK_SIZE)||(mfe>0&&pts>mfe+CFG.TICK_SIZE))?'var(--r1)':'var(--gy)';
 }
 
 /* The lockout countdown. Runs every second while a lockout is live, because a
@@ -1495,12 +1525,9 @@ function editTrade(i){
   document.getElementById('t-mfe').value=(+t.mfe||'')||'';
   document.getElementById('t-run').value=(+t.postRun||'')||'';
   paintDerived();
+  document.getElementById('t-qty').value=String(t.qty);   // before paintQty, so it is preserved
   paintQty();
-  const sel=document.getElementById('t-qty');
-  if(!Array.from(sel.options).some(o=>+o.value===+t.qty)){
-    sel.insertAdjacentHTML('beforeend','<option value="'+t.qty+'">'+t.qty+' — as taken</option>');
-  }
-  sel.value=String(t.qty);
+  document.getElementById('t-qty').value=String(t.qty);
   preflight();
   document.getElementById('p-session').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -1519,7 +1546,7 @@ function addTrade(override){
     outMins:(outRaw!=null&&outRaw>=mins)?outRaw:null,
     ins:document.getElementById('t-ins').value,
     dir:document.getElementById('t-dir').value,
-    qty:Math.max(1,Math.min(CFG.MAX_CONTRACTS,+document.getElementById('t-qty').value||1)),
+    qty:Math.max(1,+document.getElementById('t-qty').value||1),   // [v4.5] record what was taken; the engine flags it
     conf:document.getElementById('t-conf').value,
     f2:document.getElementById('t-f2').value,
     loc:document.getElementById('t-loc').value,
@@ -1936,7 +1963,12 @@ function migrate(){
       if(t.mae===undefined)     t.mae=0;
       if(t.mfe===undefined)     t.mfe=0;
       if(t.postRun===undefined) t.postRun=0;
-      t.qty=Math.max(1,Math.min(CFG.MAX_CONTRACTS,+t.qty||1));
+      /* [v4.5] Floor at 1, never a ceiling. v4.4 clamped to MAX_CONTRACTS on
+         every single load, so the moment MAX_CONTRACTS drops below a size
+         already in the log, that history is silently rewritten downward and
+         the oversize days vanish. A migration repairs missing fields; it must
+         never overwrite a recorded one. The cap belongs in the flags. */
+      t.qty=Math.max(1,+t.qty||1);
     });
     recompute(d);
   });
