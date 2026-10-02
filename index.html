@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.7.0</title>
+<title>EDGEIQ — Journal v4.8.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -164,7 +164,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v4.7.0</div>
+    <div class="chip" title="build version">v4.8.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -193,6 +193,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="rail" id="r-trades"><div class="rail-l">TRADES / 30</div><div class="rail-v" id="v-trades">0</div></div>
     <div class="rail" id="r-streak"><div class="rail-l">LOSS STREAK</div><div class="rail-v" id="v-streak">0</div></div>
     <div class="rail" id="r-peak"><div class="rail-l">PEAK POSITION</div><div class="rail-v" id="v-peak">0</div></div>
+    <div class="rail" id="r-orisk"><div class="rail-l">PEAK OPEN RISK</div><div class="rail-v" id="v-orisk">$0</div><div class="tickecho" id="v-orisk-sub"></div></div>
     <div class="rail" id="r-viol"><div class="rail-l">VIOLATIONS</div><div class="rail-v" id="v-viol">0</div></div>
   </div>
 
@@ -1119,6 +1120,64 @@ function isFirstParcel(d,t){
   return !g.length||g[0]===t;
 }
 
+
+/* [v4.8] PEAK OPEN RISK — the number that actually ends accounts.
+   PEAK POSITION counts contracts, which says nothing without a stop attached:
+   16 lots behind a 5-point stop is a smaller bet than 2 lots behind 60. And
+   summing the risk column is worse than useless — on 2 Oct it totalled $1,624
+   across six separate moments when the most ever simultaneously at risk was
+   $657, because the stop was raised on every add.
+
+   So walk the day as events and ask, at each entry, what every open lot stands
+   to lose if the stop is hit right now.
+
+   The stop level in force is taken from the most recent entry on that side,
+   because one stop protects the whole position and it moves as you add. A lot
+   whose stop has travelled past its own entry is locked in profit and
+   contributes ZERO — that is not optimism, it is what the order would pay.
+
+   Without entry prices (hand-typed rows) it falls back to each lot's own stop
+   distance, which can only overstate. Erring high is the right direction for a
+   risk number. */
+function peakOpenRisk(d){
+  const T=(d.trades||[]).slice().sort((a,b)=>a.mins-b.mins);
+  if(!T.length) return {peak:0,atMins:null,lots:0,exact:true};
+  const ev=[];
+  T.forEach((t,i)=>{
+    const out=(t.outMins!=null&&t.outMins>=t.mins)?t.outMins:t.mins;
+    ev.push({t:t.mins,i:i,open:true});
+    ev.push({t:out,  i:i,open:false});
+  });
+  ev.sort((a,b)=> a.t-b.t || (a.open?1:-1));   // closes settle before opens
+
+  const open={};            // index -> true
+  const byIndex={};         // risk standing immediately after each entry
+  let peak=0, atMins=null, atLots=0, exact=true;
+  const stopLevel={};       // 'LONG'/'SHORT' -> last known stop price
+  ev.forEach(e=>{
+    const t=T[e.i];
+    if(!e.open){ delete open[e.i]; return; }
+    open[e.i]=true;
+    const px=+t.inPx||0, sp=+t.stopPts||0;
+    if(px>0&&sp>0) stopLevel[t.dir]= (t.dir==='LONG') ? px-sp : px+sp;
+
+    let risk=0, lots=0;
+    Object.keys(open).forEach(k=>{
+      const u=T[k]; const q=+u.qty||0; lots+=q;
+      const upx=+u.inPx||0, usp=+u.stopPts||0;
+      const lvl=stopLevel[u.dir];
+      let dist;
+      if(upx>0&&lvl!=null){
+        dist=(u.dir==='LONG') ? (upx-lvl) : (lvl-upx);   // negative = locked in profit
+      }else{ dist=usp; exact=false; }                     // no price: use its own stop
+      if(dist>0) risk+=dist*q*pv(u.ins);
+    });
+    byIndex[e.i]=risk;
+    if(risk>peak){ peak=risk; atMins=e.t; atLots=lots; }
+  });
+  return {peak:peak,atMins:atMins,lots:atLots,exact:exact,byIndex:byIndex};
+}
+
 function recompute(d){
   d.trades=d.trades||[];
   d.trades.sort((a,b)=>a.mins-b.mins);
@@ -1133,6 +1192,27 @@ function recompute(d){
     t.risk=a.risk; t.riskPct=a.riskPct; t.hold=a.hold;
     t.pts=a.pts; t.rMult=a.rMult; t.maeR=a.maeR; t.headroom=a.headroom; t.capture=a.capture;
     out.push(t);
+  });
+  /* [v4.8] Open risk is a property of the whole book at a moment, not of one
+     row, so it is judged after every trade is analysed rather than inside
+     analyze(). The flag lands on the entry that pushed the book past the day
+     stop — the decision that did it. */
+  d.openRisk=peakOpenRisk(d);
+  const BI=(d.openRisk&&d.openRisk.byIndex)||{};
+  d.trades.forEach((t,i)=>{ t.openRiskAfter=+BI[i]||0; });
+  /* One entry that scaled out into three parcels is still ONE decision, and all
+     three "open" at the same minute — so flag the parcel where the position was
+     fully on, once, rather than three times for the same moment. */
+  const worst={};
+  d.trades.forEach((t,i)=>{
+    const g=t.grp||('\u0000solo'+i);
+    if(worst[g]===undefined||(+BI[i]||0)>(+BI[worst[g]]||0)) worst[g]=i;
+  });
+  Object.keys(worst).forEach(g=>{
+    const i=worst[g], t=d.trades[i], r=+BI[i]||0;
+    if(r>CFG.DAILY_LOSS_LIMIT)
+      (t.flags=t.flags||[]).push('OPEN RISK $'+r.toFixed(2)+' AFTER THIS ENTRY — past the $'
+        +CFG.DAILY_LOSS_LIMIT+' day stop, '+(r/CFG.DRAWDOWN_BUFFER*100).toFixed(1)+'% of the buffer');
   });
   d.hardViol=d.trades.reduce((s,t)=>s+hardCount(t),0);
   d.softViol=d.trades.reduce((s,t)=>s+softCount(t),0);
@@ -1399,6 +1479,14 @@ function render(){
   paintLock();
   document.getElementById('v-streak').textContent=streak;
   document.getElementById('r-streak').className='rail '+(streak>=3?'bad':streak===2?'warn':'');
+  { const OR=d.openRisk||peakOpenRisk(d);
+    document.getElementById('v-orisk').textContent=money(OR.peak);
+    document.getElementById('v-orisk-sub').textContent = OR.peak>0
+      ? (OR.lots+' lots at '+fmtMins(OR.atMins)+' \u00b7 '
+         +(OR.peak/CFG.DRAWDOWN_BUFFER*100).toFixed(1)+'% of buffer'+(OR.exact?'':' (est)'))
+      : '';
+    document.getElementById('r-orisk').className='rail '+
+      (OR.peak>CFG.DAILY_LOSS_LIMIT?'bad':OR.peak>CFG.DAILY_LOSS_LIMIT*0.5?'warn':''); }
   document.getElementById('v-peak').textContent=peak;
   document.getElementById('r-peak').className='rail '+(peak>ceil?'bad':peak===ceil&&ceil>0?'warn':'');
   document.getElementById('v-viol').textContent=viol;
@@ -1833,7 +1921,8 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   'stop_pts','risk_usd','risk_pct_limit','exit_type','open_before','day_ceiling',
   'mae_pts','mfe_pts','ran_on_pts','points','r_multiple','mae_in_r','stop_headroom','capture_pct','account',
   /* [v4.7] */ 'position','parcels_in_position','position_contracts','tp_pts','planned_rr','target_action',
-  'no_stop_in_market','commission_usd','pnl_net']);
+  'no_stop_in_market','commission_usd','pnl_net',
+  /* [v4.8] */ 'open_risk_after','day_peak_open_risk']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* One row builder feeds the file and the clipboard, so the two can never drift
@@ -1847,7 +1936,7 @@ function buildRows(wide){
     if(!d.trades.length){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,sessNote,''];
       out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','',d.acct||'',
-        '','','','','','','','','']):base);
+        '','','','','','','','','','','']):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -1869,7 +1958,9 @@ function buildRows(wide){
         (t.tact||''),
         (t.noStop?'YES':''),
         feeFor(t).toFixed(2),
-        netOf(t).toFixed(2)]):base);
+        netOf(t).toFixed(2),
+        (+t.openRiskAfter||0).toFixed(2),
+        ((d.openRisk&&d.openRisk.peak)||0).toFixed(2)]):base);
     });
   });
   return out;
@@ -2092,6 +2183,7 @@ function parseBrokerCSV(text){
         res: pnl>0.004?'WIN':(pnl<-0.004?'LOSS':'BREAKEVEN'),
         pnl:Math.round(pnl*100)/100,
         exit:exitType,
+        inPx:e.px, outPx:Math.round(exitPx*100)/100,
         note:'imported · in '+e.px+' out '+(Math.round(exitPx*100)/100),
         imported:true, override:false, window:'', flags:[], streakBefore:0
       });
