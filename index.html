@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.8.1</title>
+<title>EDGEIQ — Journal v4.8.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -164,7 +164,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v4.8.1</div>
+    <div class="chip" title="build version">v4.8.2</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -926,6 +926,15 @@ function analyze(t,prior,d,openBefore){
   const ceil=ratchetedCeiling(d,prior);
   const cap=tradeCap(d,prior,t.conf,t.stopPts,t.ins,t.mins);
 
+  /* [v4.8.2] A position that scaled out in four pieces made ONE judgment about
+     window, confluence, location, setup, trigger, size and risk. Repeating those
+     flags on every parcel counted one bad decision four times and made the day's
+     violation total a function of how many pieces you exited in. Everything the
+     position decided is guarded by firstP; only what each parcel did separately
+     — its own exit, its own excursions — is judged per row. */
+  const firstP=isFirstParcel(d,t), gqty=grpQtyOf(d,t);
+
+  if(firstP){
   // ── WINDOW
   if(w.n==='DEAD ZONE') f.push('DEAD ZONE');
   if(t.mins<585) f.push(t.mins<570?'PRE-OPEN':'OPENING RANGE');
@@ -936,7 +945,7 @@ function analyze(t,prior,d,openBefore){
   if(!d.panelF) f.push('PANEL F NOT LOCKED');
   if(d.panelF==='CONTRACTING'&&['4/6','3/6','2/6 or less'].includes(t.conf)) f.push('CONTRACTING NEEDS 5/6');
   if(['3/6','2/6 or less'].includes(t.conf)) f.push('BELOW 4/6 MIN');
-  if(esg<2&&(t.conf!=='6/6'||t.qty>1)) f.push('ESG RESTRICTED');
+  if(esg<2&&(t.conf!=='6/6'||gqty>1)) f.push('ESG RESTRICTED');
   if(!t.f2) f.push('F2 NOT CHECKED');
 
   /* ── SIZE ─────────────────────────────────────────────────────────────────
@@ -945,15 +954,12 @@ function analyze(t,prior,d,openBefore){
      grade a 5-lot that scaled out as a 4 and a 1 — two numbers, neither of which
      was ever the size on risk. With no score there is no fraction, so the cap is
      unknowable rather than 0: say that, and judge size once it is filled in. */
-  const firstP=isFirstParcel(d,t), gqty=grpQtyOf(d,t);
-  if(firstP){
-    if(!t.conf) f.push('PANEL P NOT RECORDED');
-    else if(cap===0) f.push('SIZE CAP 0 — NO TRADE PERMITTED');
-    else if(gqty>cap) f.push('OVER SIZE CAP — max '+cap+', took '+gqty);
-    if(gqty>CFG.MAX_CONTRACTS) f.push('OVER HARD MAX '+CFG.MAX_CONTRACTS);
-    if(openBefore>0) f.push('PYRAMID — '+openBefore+' already open');
-    if(openBefore+gqty>ceil&&ceil>0) f.push('PEAK '+(openBefore+gqty)+' OVER CEILING '+ceil);
-  }
+  if(!t.conf) f.push('PANEL P NOT RECORDED');
+  else if(cap===0) f.push('SIZE CAP 0 — NO TRADE PERMITTED');
+  else if(gqty>cap) f.push('OVER SIZE CAP — max '+cap+', took '+gqty);
+  if(gqty>CFG.MAX_CONTRACTS) f.push('OVER HARD MAX '+CFG.MAX_CONTRACTS);
+  if(openBefore>0) f.push('PYRAMID — '+openBefore+' already open');
+  if(openBefore+gqty>ceil&&ceil>0) f.push('PEAK '+(openBefore+gqty)+' OVER CEILING '+ceil);
 
   // ── LOCATION
   if(t.dir==='LONG'&&t.loc==='PREMIUM') f.push('LONG IN PREMIUM');
@@ -966,17 +972,22 @@ function analyze(t,prior,d,openBefore){
   if(!t.setup) f.push('SETUP NOT RECORDED');
   if(t.trig==='CHASED') f.push('CHASED ENTRY');
   if(t.trig==='NOTRIG') f.push('NO TRIGGER — ANTICIPATED');
-  if(t.exit==='PANIC') f.push('PANIC EXIT');
+  }
+  if(t.exit==='PANIC') f.push('PANIC EXIT');   // each exit is its own decision
 
-  // ── RISK
+  /* ── RISK ─────────────────────────────────────────────────────────────────
+     Risk is what the POSITION put up at entry, not what one parcel carried out.
+     A 5-lot behind a 45.75-pt stop risked $457.50 — splitting that into $366 and
+     $91.50 describes two things that never happened. */
   const stop=+t.stopPts||0;
-  const risk=stop*pv(t.ins)*(+t.qty||0);
+  const risk=stop*pv(t.ins)*gqty;
   const riskPct=CFG.DAILY_LOSS_LIMIT?risk/CFG.DAILY_LOSS_LIMIT*100:0;
   const rc=riskCapFor(stop,t.ins);
   /* [v4.7] Two opposite facts that v4.6 collapsed into one soft flag.
      "I forgot to type the stop in" is missing paperwork. "There was no stop in
      the market" is unbounded risk on a live position, and on 2 Oct that was
      true at a 16-lot peak. Only one of them should ratchet the day's ceiling. */
+  if(firstP){
   if(t.noStop) f.push('NO STOP IN THE MARKET — risk was unbounded for the life of this trade');
   else if(!stop) f.push('NO STOP LOGGED');
   /* [v4.5.1] The denominator that matters is the $2,000 trailing drawdown, not
@@ -988,6 +999,7 @@ function analyze(t,prior,d,openBefore){
       +' — $'+risk.toFixed(2)+' is '+(risk/CFG.DRAWDOWN_BUFFER*100).toFixed(1)+'% OF THE $'
       +CFG.DRAWDOWN_BUFFER+' BUFFER');
   if(d.panelF==='CONTRACTING'&&stop>CFG.STOP_CAP_TICKS*CFG.TICK_SIZE) f.push('STOP OVER '+CFG.STOP_CAP_TICKS+'-TICK CAP');
+  }
 
   // ── EXIT DATA
   if(t.outMins==null) f.push('NO EXIT TIME');
@@ -1002,8 +1014,8 @@ function analyze(t,prior,d,openBefore){
   const qty=+t.qty||0;
   const ptsGained=(qty>0)?((+t.pnl||0)/(pv(t.ins)*qty)):0;
   const rMult   = stop>0 ? ptsGained/stop : null;
-  const maeR    = stop>0 ? mae/stop       : null;
-  const headroom= stop>0 ? stop-mae       : null;
+  const maeR    = (stop>0&&mae>0) ? mae/stop       : null;
+  const headroom= (stop>0&&mae>0) ? stop-mae       : null;
   /* [v4.5] You cannot keep more than the trade ever offered. v4.4 clamped this
      to 100% and printed a confident, impossible number. Now it refuses to
      compute and raises a flag — the best detector there is of an excursion
@@ -1027,13 +1039,13 @@ function analyze(t,prior,d,openBefore){
      numbers on the order ticket seconds before you click. The breakeven rate is
      printed so the demand is explicit rather than abstract. */
   const tp=+t.tp||0;
-  if(tp>0&&stop>0){
+  if(firstP&&tp>0&&stop>0){
     const rr=tp/stop;
     if(rr<CFG.MIN_RR)
       f.push('R:R '+rr.toFixed(2)+' BELOW THE '+CFG.MIN_RR+' FLOOR — needs '
              +Math.round(stop/(stop+tp)*100)+'% wins just to break even');
-  } else if(!tp && t.tact!=='NO TARGET') f.push('TARGET NOT RECORDED');
-  if(t.tact==='NO TARGET') f.push('NO TARGET SET — the exit had nothing to aim at');
+  } else if(firstP&&!tp && t.tact!=='NO TARGET') f.push('TARGET NOT RECORDED');
+  if(firstP&&t.tact==='NO TARGET') f.push('NO TARGET SET — the exit had nothing to aim at');
 
   /* [v4.8.1] MAE and MFE belong to the POSITION — one reading across its whole
      life, logged on one parcel. The other parcels of that position are not
