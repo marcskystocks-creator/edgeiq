@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.8.2</title>
+<title>EDGEIQ — Journal v4.8.3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -164,7 +164,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v4.8.2</div>
+    <div class="chip" title="build version">v4.8.3</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -1010,11 +1010,21 @@ function analyze(t,prior,d,openBefore){
      the stop they are the only way to ask whether the stop was the right size
      and whether the exit was the right exit. Without them the log holds one
      outcome per trade and can optimise nothing.                              */
-  const mae=+t.mae||0, mfe=+t.mfe||0, run=+t.postRun||0;
+  /* [v4.8.3] MAE and MFE belong to the POSITION and are logged on one parcel, so
+     every parcel of that position must read the position's values. Otherwise the
+     parcel carrying the measurement looks like the only one that took heat, and
+     a runner that captured 97% of the move shows a blank where its best number
+     should be. The parcel still supplies its OWN points — capture is this
+     parcel's gain against what the whole position offered. */
+  const gOf=(k)=>{
+    if(!t.grp) return +t[k]||0;
+    return (d.trades||[]).reduce((m,x)=>x.grp===t.grp?Math.max(m,+x[k]||0):m,0);
+  };
+  const mae=gOf('mae'), mfe=gOf('mfe'), run=+t.postRun||0;
   const qty=+t.qty||0;
   const ptsGained=(qty>0)?((+t.pnl||0)/(pv(t.ins)*qty)):0;
   const rMult   = stop>0 ? ptsGained/stop : null;
-  const maeR    = (stop>0&&mae>0) ? mae/stop       : null;
+  const maeR    = (stop>0&&mae>0) ? mae/stop       : null;   // mae is now the position's
   const headroom= (stop>0&&mae>0) ? stop-mae       : null;
   /* [v4.5] You cannot keep more than the trade ever offered. v4.4 clamped this
      to 100% and printed a confident, impossible number. Now it refuses to
@@ -1029,7 +1039,7 @@ function analyze(t,prior,d,openBefore){
      and no amount of patience or skill would have changed the outcome. It is
      decided by the stop before the first candle prints, and it is the only
      check here that needs nothing but arithmetic. */
-  if(stop>0&&mfe>0&&mfe<stop)
+  if(firstP&&stop>0&&mfe>0&&mfe<stop)
     f.push('MFE NEVER REACHED 1R — best was '+mfe+' against a '+stop+'-pt stop, max available '
            +(mfe/stop).toFixed(2)+'R');
 
@@ -1060,7 +1070,7 @@ function analyze(t,prior,d,openBefore){
   /* Heat deeper than the stop, on a trade that did not stop out, means the
      stop was widened or moved — or a number is wrong. Either way it is the
      one rule break a journal otherwise cannot see. */
-  if(stop>0&&mae>stop+CFG.TICK_SIZE&&t.exit!=='Initial stop hit')
+  if(firstP&&stop>0&&mae>stop+CFG.TICK_SIZE&&t.exit!=='Initial stop hit')
     f.push('MAE '+mae+' EXCEEDS THE '+stop+'-PT STOP — the stop was moved, or a number is wrong');
 
   /* ── STREAK / LOCKOUT ─────────────────────────────────────────────────────
@@ -1218,7 +1228,13 @@ function recompute(d){
      stop — the decision that did it. */
   d.openRisk=peakOpenRisk(d);
   const BI=(d.openRisk&&d.openRisk.byIndex)||{};
-  d.trades.forEach((t,i)=>{ t.openRiskAfter=+BI[i]||0; });
+  /* [v4.8.3] All parcels of a position open at the same instant, so the running
+     total mid-group describes a moment that never existed. Give every parcel the
+     figure once the whole position was on. */
+  const gMax={};
+  d.trades.forEach((t,i)=>{ const g=t.grp||('\u0000solo'+i);
+    gMax[g]=Math.max(gMax[g]||0,+BI[i]||0); });
+  d.trades.forEach((t,i)=>{ t.openRiskAfter=gMax[t.grp||('\u0000solo'+i)]||0; });
   /* One entry that scaled out into three parcels is still ONE decision, and all
      three "open" at the same minute — so flag the parcel where the position was
      fully on, once, rather than three times for the same moment. */
