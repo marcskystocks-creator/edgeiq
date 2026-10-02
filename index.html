@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.5</title>
+<title>EDGEIQ — Journal v4.6.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -160,7 +160,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v4.5</div>
+    <div class="chip" title="build version">v4.6.1</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -666,11 +666,33 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
    Do not change it during a session.
    ═══════════════════════════════════════════════════════════════════════════ */
 const CFG={
-  MAX_CONTRACTS:10,            // hard ceiling — never exceeded by any path
+  /* [v4.6.0] Rebuilt for LIGHTNING FUNDED 100K — FTDFYL100496975424.
+     The Select Flex 50K was lost 2 Oct 2026 to an unchecked quantity box: 20
+     contracts fired instead of the intended size. At 20 MNQ the account is $40
+     a point, so the $2,000 buffer was 50 points wide. Nothing in this file could
+     have stopped it — a journal records, it does not execute. The control that
+     prevents a repeat lives in Tradovate's default quantity and max position
+     size, not here. Set those first; treat these numbers as the second line.
+
+     Firm constraints on this account, read off the dashboard:
+       trailing max drawdown  $96,000  ($4,000 from the $100,000 start)
+       daily loss limit       $2,500   (62% of the buffer — NOT a risk control)
+       consistency              20%    no day may exceed 20% of total profit
+       minimum profit         $6,000   the consistency rule can raise this
+
+     DAILY_LOSS_LIMIT below is self-imposed at 10% of the buffer. RISK_BUDGET_PCT
+     takes 25% of that per trade = $100, which at the 100-tick stop cap is 2
+     contracts. The stop buys the size; a wider stop buys less. */
+  MAX_CONTRACTS:10,            // dropdown ceiling only — the risk budget is the real cap
   BASE_CONTRACTS:1,
-  DAILY_LOSS_LIMIT:1500,
+  DAILY_LOSS_LIMIT:400,        // self-imposed session stop = 10% of the $4,000 buffer.
+                               // The FIRM's daily limit is $2,500 — that is 62% of the
+                               // whole account in one session. It is not a risk control.
+  DRAWDOWN_BUFFER:4000,        // Lightning 100K trailing max drawdown (100,000 -> 96,000)
+  CONSISTENCY_PCT:20,          // no single day may exceed 20% of total profit at payout
+  MIN_PROFIT:6000,             // stated payout minimum — the consistency rule can raise it
   MAX_TRADES:30,
-  RISK_BUDGET_PCT:20,          // most one trade may risk, as % of the daily limit.
+  RISK_BUDGET_PCT:25,          // most one trade may risk, as % of the daily limit.
                                // This DERIVES a size cap from the stop: a wide stop
                                // buys fewer contracts. The ladder and the budget both
                                // apply; the smaller one wins.
@@ -679,7 +701,13 @@ const CFG={
   TICK_SIZE:0.25,
   POINT_VALUE:{MNQ:2,NQ:20,MES:5,ES:50},
   // Day ceiling, locked at 9:45. Ratchets DOWN only.
-  CEILING:{ PRICE_LIE:0, NO_PANEL_F:1, ESG_LOW:1, CONTRACTING_2:1, CONTRACTING_3:2, EXPANDING_2:3, EXPANDING_3:10 },
+  /* [v4.6.1] Rescaled for the 100K. These were absolute contract counts tuned
+     for the 50K's $50 budget; v4.6.0 doubled the budget to $100 and left these
+     untouched, so the ladder's two halves stopped agreeing — the stop would
+     afford 10 while the ceiling still said 1, and the ceiling looked stuck.
+     Top is 6, not 20: twenty contracts is what ended the 50K this morning and
+     there will be no path back to it. */
+  CEILING:{ PRICE_LIE:0, NO_PANEL_F:1, ESG_LOW:1, CONTRACTING_2:2, CONTRACTING_3:3, EXPANDING_2:4, EXPANDING_3:6 },
   // Per-trade fraction of the day ceiling, by Panel P score at entry
   CONF_FRACTION:{'6/6':1.0,'5/6':0.4,'4/6':0.1,'3/6':0,'2/6 or less':0}
 };
@@ -776,6 +804,21 @@ function ratchetedCeiling(d,prior){
   let c=ceilingFor(d);
   if(prior.some(p=>hardCount(p)>0)) c=Math.min(c,CFG.BASE_CONTRACTS);
   return c;
+}
+
+/* [v4.6.1] WHY the ceiling is what it is. A number that will not move and gives
+   no reason reads as broken — and on eleven of the sixteen Panel F / ESG
+   combinations the honest answer is 1, which looks identical to a bug. Naming
+   the binding input turns a stuck number into an instruction. */
+function ceilingReason(d,prior){
+  if(prior&&prior.some(p=>hardCount(p)>0)) return 'ratcheted to base by an earlier hard violation — it cannot be raised again today';
+  if(d.panelF==='PRICE_LIE') return 'PRICE LIE is a hard veto — no size is permitted at all';
+  if(!d.panelF)              return 'Panel F is not set — until it is, the ceiling stays at base';
+  const esg=(d.esg||[]).filter(Boolean).length;
+  if(esg<=1)                 return 'emotional state is '+esg+'/3 — two or more is required before the ladder opens';
+  if(d.panelF==='CONTRACTING') return esg>=3?'CONTRACTING with full emotional state':'CONTRACTING at '+esg+'/3 — the third box raises it';
+  if(d.panelF==='EXPANDING')   return esg>=3?'EXPANDING with full emotional state — the highest the ladder goes':'EXPANDING at '+esg+'/3 — the third box raises it';
+  return 'base size';
 }
 
 /* The stop decides how many contracts you can afford. A 12.5-pt stop on MNQ buys
@@ -905,7 +948,14 @@ function analyze(t,prior,d,openBefore){
   const riskPct=CFG.DAILY_LOSS_LIMIT?risk/CFG.DAILY_LOSS_LIMIT*100:0;
   const rc=riskCapFor(stop,t.ins);
   if(!stop) f.push('NO STOP LOGGED');
-  else if(riskPct>CFG.RISK_BUDGET_PCT) f.push('RISK '+Math.round(riskPct)+'% OF DAILY LIMIT — budget is '+CFG.RISK_BUDGET_PCT+'%, that stop affords '+rc);
+  /* [v4.5.1] The denominator that matters is the $2,000 trailing drawdown, not
+     the self-imposed day stop. State both: the % of the session budget tells you
+     the trade is oversized, the % of the buffer tells you what it costs if the
+     whole thing goes wrong. */
+  else if(riskPct>CFG.RISK_BUDGET_PCT) f.push('RISK '+Math.round(riskPct)+'% OF DAY STOP — budget is '
+      +CFG.RISK_BUDGET_PCT+'%, that stop affords '+rc
+      +' — $'+risk.toFixed(2)+' is '+(risk/CFG.DRAWDOWN_BUFFER*100).toFixed(1)+'% OF THE $'
+      +CFG.DRAWDOWN_BUFFER+' BUFFER');
   if(d.panelF==='CONTRACTING'&&stop>CFG.STOP_CAP_TICKS*CFG.TICK_SIZE) f.push('STOP OVER '+CFG.STOP_CAP_TICKS+'-TICK CAP');
 
   // ── EXIT DATA
@@ -1186,7 +1236,11 @@ function render(){
   document.getElementById('esg-note').textContent=esg>=2?'Score '+esg+'/3. Normal permissions.':'Score '+esg+'/3. Restricted day: 6/6 confluence only, 1 contract, no exceptions.';
 
   const ceil=ceilingFor(d);
-  document.getElementById('ceil-note').textContent='Day ceiling '+ceil+' contract'+(ceil===1?'':'s')+'. It can only go down from here — nothing in the session raises it.';
+  const rc=ratchetedCeiling(d,d.trades.slice());
+  document.getElementById('ceil-note').textContent=
+    'Day ceiling '+rc+' contract'+(rc===1?'':'s')+' — '+ceilingReason(d,d.trades.slice())
+    +'. It can only go down from here; nothing in the session raises it.'
+    +' The stop still decides the final size — whichever is smaller wins.';
   const cc=document.getElementById('c-ceil');
   cc.textContent='CEIL '+ratchetedCeiling(d,d.trades.slice());
   cc.className='chip ceil'+(ceil===0?' zero':'');
