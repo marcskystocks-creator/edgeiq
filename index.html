@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.6.1</title>
+<title>EDGEIQ — Journal v4.7.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -47,6 +47,10 @@ body{background:var(--bg0);color:var(--wh);font-family:'DM Sans',sans-serif;min-
 .card-h{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--b1);padding-bottom:8px;margin-bottom:10px;flex-wrap:wrap;}
 .card-t{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--y1);letter-spacing:2px;}
 .card-n{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gy);}
+.tickecho{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gy);letter-spacing:.5px;margin-top:2px;min-height:11px;}
+.tickecho.warn{color:var(--y1);}
+.nostop{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gy);letter-spacing:.4px;margin-top:3px;cursor:pointer;}
+.nostop input{accent-color:var(--r1);margin:0;}
 .help{font-size:11px;color:var(--gy);line-height:1.55;margin-top:8px;}
 
 .datenav{display:flex;align-items:center;gap:6px;}
@@ -160,7 +164,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v4.6.1</div>
+    <div class="chip" title="build version">v4.7.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -185,7 +189,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 <div class="pane on" id="p-session">
 
   <div class="rails">
-    <div class="rail" id="r-pnl"><div class="rail-l">NET THIS DAY</div><div class="rail-v" id="v-pnl">$0</div></div>
+    <div class="rail" id="r-pnl"><div class="rail-l">NET THIS DAY</div><div class="rail-v" id="v-pnl">$0</div><div class="tickecho" id="v-pnl-sub"></div></div>
     <div class="rail" id="r-trades"><div class="rail-l">TRADES / 30</div><div class="rail-v" id="v-trades">0</div></div>
     <div class="rail" id="r-streak"><div class="rail-l">LOSS STREAK</div><div class="rail-v" id="v-streak">0</div></div>
     <div class="rail" id="r-peak"><div class="rail-l">PEAK POSITION</div><div class="rail-v" id="v-peak">0</div></div>
@@ -319,9 +323,10 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     </div>
 
     <div class="grid g4" style="margin-bottom:7px">
-      <div><label class="lbl" for="t-stop">STOP DISTANCE (PTS)</label><input class="inp req" id="t-stop" type="number" step="0.25" placeholder="12.5"/></div>
+      <div><label class="lbl" for="t-stop">STOP DISTANCE (PTS)</label><input class="inp req" id="t-stop" type="number" step="0.25" placeholder="12.5"/><div class="tickecho" id="t-stop-tk">&nbsp;</div><label class="nostop"><input type="checkbox" id="t-nostop"/> no stop was in the market</label></div>
       <div><label class="lbl" for="t-res">RESULT</label><select class="sel" id="t-res"><option>WIN</option><option>LOSS</option><option>BREAKEVEN</option></select></div>
       <div><label class="lbl" for="t-pnl">P&amp;L $</label><input class="inp" id="t-pnl" type="number" step="0.5" placeholder="47.50"/></div>
+      <div><label class="lbl" for="t-grp">POSITION TAG</label><input class="inp" id="t-grp" list="grplist" placeholder="blank = its own trade" autocomplete="off"/><datalist id="grplist"></datalist><div class="tickecho">same tag = same position</div></div>
       <div><label class="lbl" for="t-exit">EXIT TYPE</label><select class="sel" id="t-exit">
         <option value="">not set</option>
         <option>Target hit (TP1/TP2/TP3)</option>
@@ -333,10 +338,12 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       </select></div>
     </div>
 
-    <div class="grid g4" style="margin-bottom:4px">
-      <div><label class="lbl" for="t-mae">HEAT — MAE (PTS)</label><input class="inp" id="t-mae" type="number" step="0.25" min="0" placeholder="4.25"/></div>
-      <div><label class="lbl" for="t-mfe">BEST — MFE (PTS)</label><input class="inp" id="t-mfe" type="number" step="0.25" min="0" placeholder="28.00"/></div>
-      <div><label class="lbl" for="t-run">RAN ON AFTER EXIT (PTS)</label><input class="inp" id="t-run" type="number" step="0.25" min="0" placeholder="11.50"/></div>
+    <div class="grid g3" style="margin-bottom:4px">
+      <div><label class="lbl" for="t-mae">HEAT — MAE (PTS)</label><input class="inp" id="t-mae" type="number" step="0.25" min="0" placeholder="4.25"/><div class="tickecho" id="t-mae-tk">&nbsp;</div></div>
+      <div><label class="lbl" for="t-mfe">BEST — MFE (PTS)</label><input class="inp" id="t-mfe" type="number" step="0.25" min="0" placeholder="28.00"/><div class="tickecho" id="t-mfe-tk">&nbsp;</div></div>
+      <div><label class="lbl" for="t-run">RAN ON AFTER EXIT (PTS)</label><input class="inp" id="t-run" type="number" step="0.25" min="0" placeholder="11.50"/><div class="tickecho" id="t-run-tk">&nbsp;</div></div>
+      <div><label class="lbl" for="t-tp">TARGET AS PLACED (PTS)</label><input class="inp" id="t-tp" type="number" step="0.25" min="0" placeholder="31.50"/><div class="tickecho" id="t-tp-tk">&nbsp;</div></div>
+      <div><label class="lbl" for="t-tact">WHAT YOU DID WITH IT</label><select class="sel" id="t-tact"><option value="">—</option><option value="TOOK IT">Took the target</option><option value="TRAILED PAST">Price broke it — trailed past</option><option value="MOVED AWAY">Moved the target further out</option><option value="NEVER REACHED">Never reached it</option><option value="NO TARGET">No target was set</option></select></div>
       <div><label class="lbl">DERIVED</label><div class="inp" id="t-derived" style="color:var(--gy);white-space:nowrap;overflow:hidden">—</div></div>
     </div>
     <div class="pf warn" style="margin-top:0;margin-bottom:7px">
@@ -691,6 +698,10 @@ const CFG={
   DRAWDOWN_BUFFER:4000,        // Lightning 100K trailing max drawdown (100,000 -> 96,000)
   CONSISTENCY_PCT:20,          // no single day may exceed 20% of total profit at payout
   MIN_PROFIT:6000,             // stated payout minimum — the consistency rule can raise it
+  COMMISSION_SIDE:0.95,        // per contract per side — verified twice against live fills
+  UNIT_SANITY_PTS:100,         // above this, a "points" entry is probably a tick count
+  MIN_RR:1.5,                  // target over stop. Below this the trade needs a win rate
+                               // you have never demonstrated — see the R:R gate in analyze()
   MAX_TRADES:30,
   RISK_BUDGET_PCT:25,          // most one trade may risk, as % of the daily limit.
                                // This DERIVES a size cap from the stop: a wide stop
@@ -794,7 +805,7 @@ function ceilingFor(d){
    violation: it counts, and it drops the ceiling to base for the rest of the day. */
 const SOFT_FLAGS=['F2 NOT CHECKED','LOCATION NOT RECORDED','SETUP NOT RECORDED',
                   'NO EXIT TIME','EXIT TYPE NOT RECORDED','NO STOP LOGGED',
-                  'PANEL P NOT RECORDED','EXCURSION NOT RECORDED'];
+                  'PANEL P NOT RECORDED','EXCURSION NOT RECORDED','TARGET NOT RECORDED'];
 function isHard(f){ return SOFT_FLAGS.indexOf(String(f).split(' — ')[0])<0; }
 function hardCount(t){ return (t.flags||[]).filter(isHard).length; }
 function softCount(t){ return (t.flags||[]).filter(f=>!isHard(f)).length; }
@@ -839,10 +850,11 @@ function riskCapFor(stopPts,ins){
    could only be lifted by a win, and a win was impossible at a cap of 0. The
    rule was never "done for the day" — it is 20 minutes, then 6/6 and base size. */
 function lockoutEnd(prior){
+  const P=positionsOf(prior);                  // [v4.7] three losing POSITIONS, not parcels
   let streak=0;
-  for(let i=prior.length-1;i>=0;i--){ if(prior[i].res==='LOSS') streak++; else break; }
+  for(let i=P.length-1;i>=0;i--){ if(P[i].res==='LOSS') streak++; else break; }
   if(streak<3) return null;
-  const last=prior[prior.length-1];
+  const last=P[P.length-1];
   const base=(last.outMins!=null&&last.outMins>=last.mins)?last.outMins:last.mins;
   return base+CFG.LOCKOUT_MINUTES;
 }
@@ -852,8 +864,9 @@ function tradeCap(d,prior,conf,stopPts,ins,mins){
   const frac=CFG.CONF_FRACTION[conf];
   if(!(frac>0)) return 0;
 
+  const POS=positionsOf(prior);
   let streak=0;
-  for(let i=prior.length-1;i>=0;i--){ if(prior[i].res==='LOSS') streak++; else break; }
+  for(let i=POS.length-1;i>=0;i--){ if(POS[i].res==='LOSS') streak++; else break; }
 
   const lo=lockoutEnd(prior);
   if(lo!==null){
@@ -868,7 +881,7 @@ function tradeCap(d,prior,conf,stopPts,ins,mins){
   else if(streak===2) cap=1;
   else if(streak===1) cap=Math.max(1,Math.floor(cap/2));
 
-  const prev=prior[prior.length-1];
+  const prev=POS[POS.length-1];
   if(prev&&prev.res==='LOSS') cap=Math.min(cap,prev.qty);
 
   cap=Math.min(cap,CFG.MAX_CONTRACTS,ratchetedCeiling(d,prior));
@@ -884,14 +897,20 @@ function concurrency(d){
   const ev=[];
   d.trades.forEach((t,i)=>{
     const out=(t.outMins!=null&&t.outMins>=t.mins)?t.outMins:t.mins;
-    ev.push({t:t.mins,q:+t.qty||0,i:i,open:true});
-    ev.push({t:out,   q:-(+t.qty||0),i:i,open:false});
+    const g=t.grp||('\u0000solo'+i);
+    ev.push({t:t.mins,q:+t.qty||0,i:i,g:g,open:true});
+    ev.push({t:out,   q:-(+t.qty||0),i:i,g:g,open:false});
   });
   ev.sort((a,b)=> a.t-b.t || (a.open?1:-1));   // closes settle before opens at the same minute
-  let run=0,peak=0; const openAt={};
+  let run=0,peak=0; const openAt={}, byGrp={};
   ev.forEach(e=>{
-    if(e.open){ openAt[e.i]=run; }
+    /* [v4.7] Net out the parcel's OWN position. Scaling out of a 5-lot leaves a
+       second parcel opening at the same minute as the first; counted naively it
+       looks like a pyramid onto itself. openBefore must mean what OTHER
+       positions had on, which is the only reading that makes PYRAMID true. */
+    if(e.open){ openAt[e.i]=run-(byGrp[e.g]||0); }
     run+=e.q;
+    byGrp[e.g]=(byGrp[e.g]||0)+e.q;
     if(run>peak) peak=run;
   });
   return {peak:peak,openAt:openAt};
@@ -919,15 +938,21 @@ function analyze(t,prior,d,openBefore){
   if(esg<2&&(t.conf!=='6/6'||t.qty>1)) f.push('ESG RESTRICTED');
   if(!t.f2) f.push('F2 NOT CHECKED');
 
-  // ── SIZE
-  // With no score there is no fraction, so the cap is unknowable rather than 0.
-  // Say that, and judge the size once the score is filled in.
-  if(!t.conf) f.push('PANEL P NOT RECORDED');
-  else if(cap===0) f.push('SIZE CAP 0 — NO TRADE PERMITTED');
-  else if(t.qty>cap) f.push('OVER SIZE CAP — max '+cap+', took '+t.qty);
-  if(t.qty>CFG.MAX_CONTRACTS) f.push('OVER HARD MAX '+CFG.MAX_CONTRACTS);
-  if(openBefore>0) f.push('PYRAMID — '+openBefore+' already open');
-  if(openBefore+(+t.qty||0)>ceil&&ceil>0) f.push('PEAK '+(openBefore+(+t.qty||0))+' OVER CEILING '+ceil);
+  /* ── SIZE ─────────────────────────────────────────────────────────────────
+     Size is a property of the POSITION, so it is judged once, on the parcel that
+     opened it, against the position's full quantity. Judging each parcel would
+     grade a 5-lot that scaled out as a 4 and a 1 — two numbers, neither of which
+     was ever the size on risk. With no score there is no fraction, so the cap is
+     unknowable rather than 0: say that, and judge size once it is filled in. */
+  const firstP=isFirstParcel(d,t), gqty=grpQtyOf(d,t);
+  if(firstP){
+    if(!t.conf) f.push('PANEL P NOT RECORDED');
+    else if(cap===0) f.push('SIZE CAP 0 — NO TRADE PERMITTED');
+    else if(gqty>cap) f.push('OVER SIZE CAP — max '+cap+', took '+gqty);
+    if(gqty>CFG.MAX_CONTRACTS) f.push('OVER HARD MAX '+CFG.MAX_CONTRACTS);
+    if(openBefore>0) f.push('PYRAMID — '+openBefore+' already open');
+    if(openBefore+gqty>ceil&&ceil>0) f.push('PEAK '+(openBefore+gqty)+' OVER CEILING '+ceil);
+  }
 
   // ── LOCATION
   if(t.dir==='LONG'&&t.loc==='PREMIUM') f.push('LONG IN PREMIUM');
@@ -947,7 +972,12 @@ function analyze(t,prior,d,openBefore){
   const risk=stop*pv(t.ins)*(+t.qty||0);
   const riskPct=CFG.DAILY_LOSS_LIMIT?risk/CFG.DAILY_LOSS_LIMIT*100:0;
   const rc=riskCapFor(stop,t.ins);
-  if(!stop) f.push('NO STOP LOGGED');
+  /* [v4.7] Two opposite facts that v4.6 collapsed into one soft flag.
+     "I forgot to type the stop in" is missing paperwork. "There was no stop in
+     the market" is unbounded risk on a live position, and on 2 Oct that was
+     true at a 16-lot peak. Only one of them should ratchet the day's ceiling. */
+  if(t.noStop) f.push('NO STOP IN THE MARKET — risk was unbounded for the life of this trade');
+  else if(!stop) f.push('NO STOP LOGGED');
   /* [v4.5.1] The denominator that matters is the $2,000 trailing drawdown, not
      the self-imposed day stop. State both: the % of the session budget tells you
      the trade is oversized, the % of the buffer tells you what it costs if the
@@ -980,6 +1010,30 @@ function analyze(t,prior,d,openBefore){
   const mfeBad  = mfe>0 && ptsGained > mfe + CFG.TICK_SIZE;
   const capture = (mfe>0&&ptsGained>0&&!mfeBad) ? Math.min(1,ptsGained/mfe) : null;
 
+  /* [v4.7] The trade's best moment never reached the distance being risked, so
+     no exit could ever have paid 1R. This separates a management problem from
+     an impossible one: on 30 Sep the MFE was 152 ticks against a 157-tick stop,
+     and no amount of patience or skill would have changed the outcome. It is
+     decided by the stop before the first candle prints, and it is the only
+     check here that needs nothing but arithmetic. */
+  if(stop>0&&mfe>0&&mfe<stop)
+    f.push('MFE NEVER REACHED 1R — best was '+mfe+' against a '+stop+'-pt stop, max available '
+           +(mfe/stop).toFixed(2)+'R');
+
+  /* [v4.7] The R:R gate. On 30 Sep the ticket read 0.8 before entry — 157 ticks
+     risked to make 126 — and nothing in this app asked about it. A sub-1.5 R:R
+     needs a win rate you have not demonstrated, and it is knowable from two
+     numbers on the order ticket seconds before you click. The breakeven rate is
+     printed so the demand is explicit rather than abstract. */
+  const tp=+t.tp||0;
+  if(tp>0&&stop>0){
+    const rr=tp/stop;
+    if(rr<CFG.MIN_RR)
+      f.push('R:R '+rr.toFixed(2)+' BELOW THE '+CFG.MIN_RR+' FLOOR — needs '
+             +Math.round(stop/(stop+tp)*100)+'% wins just to break even');
+  } else if(!tp && t.tact!=='NO TARGET') f.push('TARGET NOT RECORDED');
+  if(t.tact==='NO TARGET') f.push('NO TARGET SET — the exit had nothing to aim at');
+
   if(!mae&&!mfe) f.push('EXCURSION NOT RECORDED');
   if(mfeBad) f.push('POINTS '+ptsGained.toFixed(2)+' EXCEED THE MFE OF '+mfe
                    +' — one of the two is wrong (check points vs ticks: x4)');
@@ -989,28 +1043,80 @@ function analyze(t,prior,d,openBefore){
   if(stop>0&&mae>stop+CFG.TICK_SIZE&&t.exit!=='Initial stop hit')
     f.push('MAE '+mae+' EXCEEDS THE '+stop+'-PT STOP — the stop was moved, or a number is wrong');
 
-  // ── STREAK / LOCKOUT
-  let streak=0; for(let i=prior.length-1;i>=0;i--){ if(prior[i].res==='LOSS') streak++; else break; }
+  /* ── STREAK / LOCKOUT ─────────────────────────────────────────────────────
+     All of this counts POSITIONS. Scaling out of one entry in three pieces is
+     one decision, and counting it as three would reset a loss streak with
+     paperwork, inflate the trade count, and let a scaled position slip past the
+     30-trade ceiling without a single extra entry. */
+  const POS=positionsOf(prior);
+  const first=firstP, gq=gqty;
+  let streak=0; for(let i=POS.length-1;i>=0;i--){ if(POS[i].res==='LOSS') streak++; else break; }
   const lo=lockoutEnd(prior);
-  if(lo!==null){
+  if(lo!==null&&first){
     if(t.mins<lo) f.push('TRADED INSIDE THE '+CFG.LOCKOUT_MINUTES+'-MIN LOCKOUT — it cleared at '+fmtMins(lo));
     else if(t.conf&&t.conf!=='6/6') f.push('POST-LOCKOUT — 6/6 ONLY, took '+t.conf);
-    else if(t.qty>CFG.BASE_CONTRACTS) f.push('POST-LOCKOUT — BASE SIZE ONLY, took '+t.qty);
+    else if(gq>CFG.BASE_CONTRACTS) f.push('POST-LOCKOUT — BASE SIZE ONLY, took '+gq);
   }
-  const L=prior.filter(x=>x.res==='LOSS');
-  if(L.length>=2){ const a=L[L.length-1],b=L[L.length-2]; if(a.mins-b.mins<=10&&t.mins-a.mins<10) f.push('SPEED LOCKOUT'); }
-  const prev=prior[prior.length-1];
-  if(prev&&prev.res==='LOSS'&&t.qty>prev.qty) f.push('SIZE UP AFTER LOSS');
+  const L=POS.filter(x=>x.res==='LOSS');
+  if(first&&L.length>=2){ const a=L[L.length-1],b=L[L.length-2]; if(a.mins-b.mins<=10&&t.mins-a.mins<10) f.push('SPEED LOCKOUT'); }
+  const prev=POS[POS.length-1];
+  if(first&&prev&&prev.res==='LOSS'&&gq>prev.qty) f.push('SIZE UP AFTER LOSS');
 
   // ── DAY LIMITS
-  if(prior.length>=CFG.MAX_TRADES) f.push('OVER '+CFG.MAX_TRADES+' TRADES');
-  if(prior.reduce((s,x)=>s+(+x.pnl||0),0)<=-CFG.DAILY_LOSS_LIMIT) f.push('PAST DAILY LOSS LIMIT');
+  if(first&&POS.length>=CFG.MAX_TRADES) f.push('OVER '+CFG.MAX_TRADES+' TRADES');
+  if(prior.reduce((s,x)=>s+netOf(x),0)<=-CFG.DAILY_LOSS_LIMIT) f.push('PAST DAILY LOSS LIMIT');
 
   if(t.override) f.push('LOGGED OVER AN ACTIVE VETO');
 
   const hold=(t.outMins!=null&&t.outMins>=t.mins)?(t.outMins-t.mins):null;
   return {window:w.n,flags:f,streakBefore:streak,cap:cap,ceil:ceil,risk:risk,riskPct:riskPct,hold:hold,
           pts:ptsGained,rMult:rMult,maeR:maeR,headroom:headroom,capture:capture,run:run};
+}
+
+/* [v4.7] Commission. The importer reads GROSS off the fills; the account moves
+   NET. On 1 Oct that gap was $5.70 on one 3-lot round turn and on 2 Oct $58.90
+   across 31 — 2.8% of the day. A journal that reports a number the broker
+   statement never shows is a journal you stop trusting. One round turn is two
+   sides, so a parcel of n contracts costs n x 2 x COMMISSION_SIDE. */
+function feeFor(t){ return (Math.abs(+t.qty||0))*2*CFG.COMMISSION_SIDE; }
+function netOf(t){ return (+t.pnl||0) - feeFor(t); }
+function dayGross(d){ return (d.trades||[]).reduce((s,x)=>s+(+x.pnl||0),0); }
+function dayFees(d){  return (d.trades||[]).reduce((s,x)=>s+feeFor(x),0); }
+function dayNet(d){   return dayGross(d)-dayFees(d); }
+
+/* [v4.7] POSITIONS — parcels collapsed back into the trades they came from.
+   Six parcels out of two entries is two decisions, not six. Streaks, the
+   lockout, the 30-trade cap and the size ladder all describe DECISIONS, so they
+   must read positions; R, capture and excursion describe parcels and keep
+   reading rows. A row with no grp stands alone, which is exactly how every
+   pre-v4.7 day behaves — nothing already logged changes meaning. */
+function positionsOf(list){
+  const ix={}, out=[];
+  (list||[]).forEach((t,i)=>{
+    const g=t.grp||('\u0000solo'+i);
+    if(ix[g]===undefined){ ix[g]=out.length; out.push({grp:g,mins:t.mins,outMins:t.outMins,qty:0,pnl:0,n:0}); }
+    const P=out[ix[g]];
+    P.qty+=(+t.qty||0);
+    P.pnl+=netOf(t);
+    P.n++;
+    if(t.mins<P.mins) P.mins=t.mins;
+    if(t.outMins!=null&&(P.outMins==null||t.outMins>P.outMins)) P.outMins=t.outMins;
+  });
+  out.forEach(P=>{ P.res=P.pnl>0.004?'WIN':(P.pnl<-0.004?'LOSS':'BREAKEVEN'); });
+  return out;
+}
+/* Total size of the position this parcel belongs to, and whether this parcel is
+   the one that should carry the position's size verdict. Without this a 5-lot
+   that scaled out in two pieces would be judged twice, as a 4 and as a 1 —
+   neither of which is the size that was actually taken. */
+function grpQtyOf(d,t){
+  if(!t.grp) return (+t.qty||0);
+  return (d.trades||[]).filter(x=>x.grp===t.grp).reduce((s,x)=>s+(+x.qty||0),0);
+}
+function isFirstParcel(d,t){
+  if(!t.grp) return true;
+  const g=(d.trades||[]).filter(x=>x.grp===t.grp);
+  return !g.length||g[0]===t;
 }
 
 function recompute(d){
@@ -1079,7 +1185,36 @@ function paintQty(){
 /* Live read-out under the excursion row: R, heat as a fraction of risk, how
    much of the move was kept, and what the stop had left. Recomputed as you
    type, so a bad number is obvious before the trade is logged. */
+/* [v4.7] Every one of these fields is POINTS. Your broker ticket quotes TICKS.
+   The ×4 confusion has corrupted a row three times now — a 157-tick stop logged
+   as 9.8125, excursions divided by four, a ran-on of 246. So echo the tick
+   equivalent live under each box: type 9.81 and it says "39 ticks", which is
+   instantly wrong against a ticket that says 157. The check costs nothing and
+   happens at the only moment it can still be caught cheaply. */
+function paintTicks(){
+  [['t-stop',null],['t-mae',null],['t-mfe',null],['t-run',null],['t-tp',null]].forEach(([id])=>{
+    const inp=document.getElementById(id), out=document.getElementById(id+'-tk');
+    if(!inp||!out) return;
+    const v=Math.abs(+inp.value||0);
+    if(!v){ out.innerHTML='&nbsp;'; out.className='tickecho'; return; }
+    const ticks=v/CFG.TICK_SIZE;
+    const whole=Math.abs(ticks-Math.round(ticks))<1e-9;
+    let txt='= '+(whole?Math.round(ticks):ticks.toFixed(2))+' ticks';
+    /* Two different smells, two different causes:
+       - not a whole number of ticks: cannot be a real price distance on this
+         instrument, so a figure has been divided somewhere;
+       - implausibly large: a tick count typed into a points box. 246 "points"
+         is four times the whole day's range, but 984 ticks divides cleanly, so
+         the whole-tick test alone waves it through. Offer the ÷4 reading. */
+    const big = v>CFG.UNIT_SANITY_PTS;
+    if(big) txt+='  · ÷4 = '+(v/4).toFixed(2)+' pts?';
+    out.textContent=txt;
+    out.className='tickecho'+((whole&&!big)?'':' warn');
+  });
+}
+
 function paintDerived(){
+  paintTicks();
   const el=document.getElementById('t-derived'); if(!el) return;
   const stop=+document.getElementById('t-stop').value||0;
   const mae=Math.abs(+document.getElementById('t-mae').value||0);
@@ -1226,6 +1361,9 @@ function render(){
   document.getElementById('f-acct').value=d.acct||'';
   const accts=Array.from(new Set(Object.keys(DB.days).map(k=>DB.days[k].acct).filter(Boolean))).sort();
   document.getElementById('acctlist').innerHTML=accts.map(a=>'<option value="'+a.replace(/"/g,'&quot;')+'"></option>').join('');
+  { const gl=document.getElementById('grplist');
+    if(gl){ const tags=Array.from(new Set((d.trades||[]).map(x=>x.grp).filter(Boolean)));
+      gl.innerHTML=tags.map(a=>'<option value="'+String(a).replace(/"/g,'&quot;')+'"></option>').join(''); } }
   const ac=document.getElementById('c-acct');
   if(d.acct){ ac.style.display=''; ac.textContent='ACCT '+d.acct; } else { ac.style.display='none'; }
   document.getElementById('dd-grade').value=d.grade||'';
@@ -1245,7 +1383,7 @@ function render(){
   cc.textContent='CEIL '+ratchetedCeiling(d,d.trades.slice());
   cc.className='chip ceil'+(ceil===0?' zero':'');
 
-  const net=d.trades.reduce((s,x)=>s+(+x.pnl||0),0);
+  const gross=dayGross(d), fees=dayFees(d), net=gross-fees;
   const wins=d.trades.filter(x=>x.res==='WIN').length;
   const dec=d.trades.filter(x=>x.res!=='BREAKEVEN').length;
   let streak=0; for(let i=d.trades.length-1;i>=0;i--){ if(d.trades[i].res==='LOSS') streak++; else break; }
@@ -1253,6 +1391,8 @@ function render(){
   const peak=d.peakPos||0;
 
   document.getElementById('v-pnl').textContent=money(net);
+  { const sub=document.getElementById('v-pnl-sub');
+    if(sub) sub.textContent = fees>0 ? ('gross '+money(gross)+' \u2212 '+money(fees)+' fees') : ''; }
   document.getElementById('r-pnl').className='rail '+(net<=-CFG.DAILY_LOSS_LIMIT?'bad':net<0?'warn':net>0?'good':'');
   document.getElementById('v-trades').textContent=d.trades.length;
   document.getElementById('r-trades').className='rail '+(d.trades.length>=CFG.MAX_TRADES?'bad':d.trades.length>=20?'warn':'');
@@ -1571,6 +1711,10 @@ function editTrade(i){
   document.getElementById('t-setup').value=t.setup||'';
   document.getElementById('t-trig').value=t.trig||'';
   document.getElementById('t-stop').value=(+t.stopPts||'')||'';
+  document.getElementById('t-nostop').checked=!!t.noStop;
+  document.getElementById('t-tp').value=(+t.tp||'')||'';
+  document.getElementById('t-grp').value=t.grp||'';
+  document.getElementById('t-tact').value=t.tact||'';
   document.getElementById('t-res').value=t.res||'WIN';
   document.getElementById('t-pnl').value=(t.pnl!==undefined?t.pnl:'');
   document.getElementById('t-exit').value=t.exit||'';
@@ -1588,6 +1732,9 @@ function editTrade(i){
 function cancelEdit(){
   EDIT_IX=-1;
   ['t-pnl','t-note','t-time','t-out','t-stop','t-mae','t-mfe','t-run'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('t-nostop').checked=false;
+  document.getElementById('t-tp').value=''; document.getElementById('t-tact').value='';
+  document.getElementById('t-grp').value='';
   render();
 }
 
@@ -1607,6 +1754,10 @@ function addTrade(override){
     setup:document.getElementById('t-setup').value,
     trig:document.getElementById('t-trig').value,
     stopPts:+document.getElementById('t-stop').value||0,
+    grp:document.getElementById('t-grp').value.trim(),
+    tp:Math.abs(+document.getElementById('t-tp').value||0),
+    tact:document.getElementById('t-tact').value,
+    noStop:!!document.getElementById('t-nostop').checked,
     mae:Math.abs(+document.getElementById('t-mae').value||0),
     mfe:Math.abs(+document.getElementById('t-mfe').value||0),
     postRun:Math.abs(+document.getElementById('t-run').value||0),
@@ -1628,6 +1779,9 @@ function addTrade(override){
   }
   recompute(d);
   ['t-pnl','t-note','t-time','t-out','t-stop','t-mae','t-mfe','t-run'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('t-nostop').checked=false;
+  document.getElementById('t-tp').value=''; document.getElementById('t-tact').value='';
+  document.getElementById('t-grp').value='';
   save();
 }
 /* ---------- SETUPS PASSED ON ---------- */
@@ -1673,9 +1827,13 @@ function closeDay(){
    ═══════════════════════════════════════════════════════════════════════════ */
 const HEAD19=['date','day_no','instrument','time_et','window','direction','contracts','confluence','result','pnl',
   'loss_streak_before','violation_count','violations','panel_f','vix_regime','esg_score','session_grade','session_note','trade_note'];
+/* A-S (HEAD19) is frozen forever — the workbook has live formulas keyed to those
+   columns. Anything new is appended to the END of FULL, never inserted. */
 const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','f2_at_entry',
   'stop_pts','risk_usd','risk_pct_limit','exit_type','open_before','day_ceiling',
-  'mae_pts','mfe_pts','ran_on_pts','points','r_multiple','mae_in_r','stop_headroom','capture_pct','account']);
+  'mae_pts','mfe_pts','ran_on_pts','points','r_multiple','mae_in_r','stop_headroom','capture_pct','account',
+  /* [v4.7] */ 'position','parcels_in_position','position_contracts','tp_pts','planned_rr','target_action',
+  'no_stop_in_market','commission_usd','pnl_net']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* One row builder feeds the file and the clipboard, so the two can never drift
@@ -1688,7 +1846,8 @@ function buildRows(wide){
     const sessNote=[d.fix,d.note].filter(Boolean).join(' — ');
     if(!d.trades.length){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,sessNote,''];
-      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','',d.acct||'']):base);
+      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','',d.acct||'',
+        '','','','','','','','','']):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -1700,7 +1859,17 @@ function buildRows(wide){
         (+t.mae||0),(+t.mfe||0),(+t.postRun||0),
         (t.pts!=null?t.pts.toFixed(2):''),(t.rMult!=null?t.rMult.toFixed(3):''),
         (t.maeR!=null?t.maeR.toFixed(3):''),(t.headroom!=null?t.headroom.toFixed(2):''),
-        (t.capture!=null?Math.round(t.capture*100):''),(d.acct||'')]):base);
+        (t.capture!=null?Math.round(t.capture*100):''),(d.acct||''),
+        /* [v4.7] */
+        (t.grp||''),
+        (t.grp?(d.trades||[]).filter(x=>x.grp===t.grp).length:1),
+        grpQtyOf(d,t),
+        (+t.tp||0)||'',
+        ((+t.tp>0&&+t.stopPts>0)?(t.tp/t.stopPts).toFixed(2):''),
+        (t.tact||''),
+        (t.noStop?'YES':''),
+        feeFor(t).toFixed(2),
+        netOf(t).toFixed(2)]):base);
     });
   });
   return out;
@@ -1732,7 +1901,7 @@ function doCopy(wide,where){
   if(!rows.length){ flashCopy('Nothing to copy yet. Close out at least one day first.',true); return; }
   const text=rows.map(r=>r.map(tsvCell).join('\t')).join('\n');
   const days=new Set(rows.map(r=>r[0])).size;
-  const msg=rows.length+' rows · '+days+' day'+(days>1?'s':'')+' · '+(wide?31:19)+' columns copied. '+where;
+  const msg=rows.length+' rows · '+days+' day'+(days>1?'s':'')+' · '+(wide?HEAD31.length:HEAD19.length)+' columns copied. '+where;
   const ok=()=>flashCopy(msg,false);
   const bad=()=>flashCopy('Copy was blocked. Use the download button instead.',true);
   try{
@@ -1847,38 +2016,49 @@ function parseBrokerCSV(text){
   const byDay={};
   const books={};   // date|prod -> array of open entry orders
 
+  /* [v4.7] PARCELS, not weighted averages.
+     v4.6 accumulated every exit into the entry order and emitted ONE row with a
+     blended exit price and the LAST exit time. That is why 2 Oct reported a peak
+     of 20 contracts when the true peak was 16: four of the first five lots left
+     at 10:05, but the row claimed all five were held to 10:13.
+     A partial exit is a fact about the position, and a model that cannot express
+     it will misreport exposure on every scaled day. So each FIFO fill now emits
+     its own parcel with its own exit time, price and quantity, and the parcels
+     carry a shared grp so the day still knows they were one position. */
+  let GID=0;
   fills.forEach(f=>{
     const key=f.date+'|'+f.prod;
     if(!books[key]) books[key]=[];
     const book=books[key];
     let left=f.qty;
 
-    // Consume opposite-side open entries FIFO.
+    // Consume opposite-side open entries FIFO, emitting a parcel per bite.
     while(left>0&&book.length&&book[0].dir!==f.dir){
       const e=book[0];
       const take=Math.min(left,e.rem);
-      e.rem-=take; e.exitVal+=take*f.px; e.exitQty+=take;
-      e.lastExitSec=f.sec; e.lastExitMins=f.mins; e.lastExitType=f.type;
+      e.rem-=take;
       left-=take;
-      if(e.rem<=1e-9){
-        book.shift();
-        if(!byDay[f.date]) byDay[f.date]=[];
-        byDay[f.date].push(e);
-      }
+      if(!byDay[f.date]) byDay[f.date]=[];
+      byDay[f.date].push({grp:e.gid,prod:e.prod,dir:e.dir,qty:take,
+                          px:e.px,mins:e.mins,sec:e.sec,
+                          outPx:f.px,outMins:f.mins,outSec:f.sec,outType:f.type});
+      if(e.rem<=1e-9) book.shift();
     }
     // Anything left opens a new entry order.
-    if(left>0) book.push({prod:f.prod,dir:f.dir,qty:left,rem:left,px:f.px,
-                          mins:f.mins,sec:f.sec,exitVal:0,exitQty:0,
-                          lastExitMins:null,lastExitType:''});
+    if(left>0){
+      GID++;
+      book.push({gid:'P'+GID,prod:f.prod,dir:f.dir,qty:left,rem:left,px:f.px,
+                 mins:f.mins,sec:f.sec});
+    }
   });
 
   const trades=[],open=[];
   Object.keys(books).forEach(k=>books[k].forEach(e=>open.push({date:k.split('|')[0],prod:e.prod,qty:e.rem,mins:e.mins})));
 
   Object.keys(byDay).forEach(dt=>{
-    byDay[dt].sort((a,b)=>a.sec-b.sec);
+    byDay[dt].sort((a,b)=>(a.sec-b.sec)||(a.outSec-b.outSec));
     byDay[dt].forEach(e=>{
-      const exitPx=e.exitQty?e.exitVal/e.exitQty:e.px;
+      const exitPx=e.outPx;
       const pnl=(exitPx-e.px)*e.dir*e.qty*pv(e.prod);
 
       /* Initial stop, if one is recoverable. Only a stop placed on the LOSING
@@ -1889,7 +2069,7 @@ function parseBrokerCSV(text){
         if(s.date!==dt||s.prod!==e.prod) return;
         if(s.dir===e.dir) return;                        // must be the closing side
         if(s.sec < e.sec-5) return;                      // placed before this entry
-        if(e.lastExitSec!=null && s.sec > e.lastExitSec) return;  // placed after the exit
+        if(e.outSec!=null && s.sec > e.outSec) return;            // placed after the exit
         if(s.sec-e.sec>180) return;                      // protective stops go on at once
         const adverse=e.dir>0?(s.px<e.px):(s.px>e.px);
         if(!adverse) return;
@@ -1898,16 +2078,17 @@ function parseBrokerCSV(text){
       });
 
       let exitType='';
-      const lt=e.lastExitType||'';
+      const lt=e.outType||'';
       if(lt.indexOf('STOP')>=0) exitType=(pnl>0?'Trailing stop — locked profit':'Initial stop hit');
       else if(lt.indexOf('LIMIT')>=0) exitType='Target hit (TP1/TP2/TP3)';
       else if(lt.indexOf('MARKET')>=0) exitType='Manual — thesis invalidated';
 
       trades.push({
-        date:dt, mins:e.mins, outMins:e.lastExitMins,
+        date:dt, mins:e.mins, outMins:e.outMins, grp:e.grp,
         ins:e.prod, dir:e.dir>0?'LONG':'SHORT', qty:Math.round(e.qty),
         conf:'', f2:'', loc:'', setup:'', trig:'',
-        stopPts:Math.round(stopPts*4)/4, mae:0, mfe:0, postRun:0,
+        stopPts:Math.round(stopPts*4)/4, tp:0, tact:'', noStop:false,
+        mae:0, mfe:0, postRun:0,
         res: pnl>0.004?'WIN':(pnl<-0.004?'LOSS':'BREAKEVEN'),
         pnl:Math.round(pnl*100)/100,
         exit:exitType,
@@ -2011,8 +2192,12 @@ function migrate(){
       if(t.setup===undefined)t.setup='';
       if(t.trig===undefined) t.trig='';
       if(t.exit===undefined) t.exit='';
+      if(t.grp===undefined)     t.grp='';
       if(t.stopPts===undefined) t.stopPts=0;
+      if(t.tp===undefined)      t.tp=0;
+      if(t.tact===undefined)    t.tact='';
       if(t.override===undefined) t.override=false;
+      if(t.noStop===undefined)  t.noStop=false;
       if(t.imported===undefined) t.imported=false;
       if(t.mae===undefined)     t.mae=0;
       if(t.mfe===undefined)     t.mfe=0;
