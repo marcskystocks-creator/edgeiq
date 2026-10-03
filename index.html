@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.8.3</title>
+<title>EDGEIQ — Journal v4.9.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -164,7 +164,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v4.8.3</div>
+    <div class="chip" title="build version">v4.9.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -191,7 +191,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
   <div class="rails">
     <div class="rail" id="r-pnl"><div class="rail-l">NET THIS DAY</div><div class="rail-v" id="v-pnl">$0</div><div class="tickecho" id="v-pnl-sub"></div></div>
     <div class="rail" id="r-trades"><div class="rail-l">TRADES / 30</div><div class="rail-v" id="v-trades">0</div></div>
-    <div class="rail" id="r-streak"><div class="rail-l">LOSS STREAK</div><div class="rail-v" id="v-streak">0</div></div>
+    <div class="rail" id="r-streak"><div class="rail-l">LOSS STREAK</div><div class="rail-v" id="v-streak">0</div><div class="tickecho" id="v-streak-sub"></div></div>
     <div class="rail" id="r-peak"><div class="rail-l">PEAK POSITION</div><div class="rail-v" id="v-peak">0</div></div>
     <div class="rail" id="r-orisk"><div class="rail-l">PEAK OPEN RISK</div><div class="rail-v" id="v-orisk">$0</div><div class="tickecho" id="v-orisk-sub"></div></div>
     <div class="rail" id="r-viol"><div class="rail-l">VIOLATIONS</div><div class="rail-v" id="v-viol">0</div></div>
@@ -436,6 +436,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 
   <div class="card">
     <div class="card-h"><div class="card-t">CLOSE THE DAY</div><div class="card-n" id="grade-hint">—</div></div>
+    <label class="nostop" style="margin-bottom:7px"><input type="checkbox" id="dd-excl"/> EXCLUDE this day from expectancy, streak history and the breakdowns — for a session that was not the system</label>
     <div class="grid g2" style="margin-bottom:7px">
       <div>
         <label class="lbl" for="dd-grade">PROCESS GRADE — rules followed, not money made</label>
@@ -526,6 +527,12 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="rail" id="s-net-r"><div class="rail-l">CUMULATIVE NET</div><div class="rail-v" id="s-net">$0</div></div>
     <div class="rail" id="s-peak-r"><div class="rail-l">LARGEST POSITION</div><div class="rail-v" id="s-peak">0</div></div>
     <div class="rail" id="s-viol-r"><div class="rail-l">TOTAL VIOLATIONS</div><div class="rail-v" id="s-viol">0</div></div>
+    <div class="rail" id="s-mls-r"><div class="rail-l">LONGEST LOSS RUN</div><div class="rail-v" id="s-mls">0</div><div class="tickecho" id="s-mls-sub"></div></div>
+  </div>
+  <div class="card">
+    <div class="card-h"><div class="card-t">EXPECTANCY</div><div class="card-n" id="ev-n">—</div></div>
+    <div class="bd"><div id="ev-body"></div></div>
+    <div class="help" id="ev-help"></div>
   </div>
   <div class="card">
     <div class="card-h"><div class="card-t">WHAT THE DATA SAYS SO FAR</div><div class="card-n" id="conf-warn">—</div></div>
@@ -748,7 +755,7 @@ function lastAccount(){
   for(let i=ks.length-1;i>=0;i--){ const a=DB.days[ks[i]].acct; if(a) return a; }
   return '';
 }
-function blankDay(d){return {date:d,panelF:'',vix:'',acct:lastAccount(),esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false};}
+function blankDay(d){return {date:d,panelF:'',vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -806,7 +813,7 @@ function ceilingFor(d){
    violation: it counts, and it drops the ceiling to base for the rest of the day. */
 const SOFT_FLAGS=['F2 NOT CHECKED','LOCATION NOT RECORDED','SETUP NOT RECORDED',
                   'NO EXIT TIME','EXIT TYPE NOT RECORDED','NO STOP LOGGED',
-                  'PANEL P NOT RECORDED','EXCURSION NOT RECORDED','TARGET NOT RECORDED'];
+                  'PANEL P NOT RECORDED','EXCURSION NOT RECORDED','TARGET NOT RECORDED','CARRY-IN STREAK'];
 function isHard(f){ return SOFT_FLAGS.indexOf(String(f).split(' — ')[0])<0; }
 function hardCount(t){ return (t.flags||[]).filter(isHard).length; }
 function softCount(t){ return (t.flags||[]).filter(f=>!isHard(f)).length; }
@@ -1091,6 +1098,16 @@ function analyze(t,prior,d,openBefore){
   if(first&&L.length>=2){ const a=L[L.length-1],b=L[L.length-2]; if(a.mins-b.mins<=10&&t.mins-a.mins<10) f.push('SPEED LOCKOUT'); }
   const prev=POS[POS.length-1];
   if(first&&prev&&prev.res==='LOSS'&&gq>prev.qty) f.push('SIZE UP AFTER LOSS');
+  /* [v4.9] The run you walked in with. A new session resets the clock, not the
+     sequence — and the sequence is what the drawdown counts. Reported, not
+     enforced: the 20-minute cool-off already happened overnight. */
+  if(first&&!POS.length){
+    const ci=carryInStreak(d.date);
+    if(ci>=2) f.push('CARRY-IN STREAK '+ci+' — that run cost $'
+      +(ci*CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100).toFixed(0)
+      +' at budget, '+(ci*CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100/CFG.DRAWDOWN_BUFFER*100).toFixed(1)
+      +'% of the buffer. The lockout reset overnight; the run did not');
+  }
 
   // ── DAY LIMITS
   if(first&&POS.length>=CFG.MAX_TRADES) f.push('OVER '+CFG.MAX_TRADES+' TRADES');
@@ -1484,6 +1501,7 @@ function render(){
   document.getElementById('dd-grade').value=d.grade||'';
   document.getElementById('dd-fix').value=d.fix||'';
   document.getElementById('dd-note').value=d.note||'';
+  document.getElementById('dd-excl').checked=!!d.excl;
   [0,1,2].forEach(i=>document.getElementById('e'+i).classList.toggle('on',!!d.esg[i]));
   const esg=d.esg.filter(Boolean).length;
   document.getElementById('esg-note').textContent=esg>=2?'Score '+esg+'/3. Normal permissions.':'Score '+esg+'/3. Restricted day: 6/6 confluence only, 1 contract, no exceptions.';
@@ -1512,8 +1530,12 @@ function render(){
   document.getElementById('v-trades').textContent=d.trades.length;
   document.getElementById('r-trades').className='rail '+(d.trades.length>=CFG.MAX_TRADES?'bad':d.trades.length>=20?'warn':'');
   paintLock();
-  document.getElementById('v-streak').textContent=streak;
-  document.getElementById('r-streak').className='rail '+(streak>=3?'bad':streak===2?'warn':'');
+  { const ci=carryInStreak(VIEW);
+    document.getElementById('v-streak').textContent=streak;
+    const sub=document.getElementById('v-streak-sub');
+    if(sub) sub.textContent = ci>0 ? ('carried in '+ci+' \u00b7 run of '+(streak+ci)) : '';
+    document.getElementById('r-streak').className='rail '+
+      ((streak+ci)>=3?'bad':(streak+ci)===2?'warn':''); }
   { const OR=d.openRisk||peakOpenRisk(d);
     document.getElementById('v-orisk').textContent=money(OR.peak);
     document.getElementById('v-orisk-sub').textContent = OR.peak>0
@@ -1668,6 +1690,68 @@ function holdBand(h){
   return 'over 60 min';
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   [v4.9] STREAK HISTORY AND EXPECTANCY — across days, not just within one
+   ═══════════════════════════════════════════════════════════════════════════
+   The intraday counter resets at midnight, which is a fiction: two losses to
+   close Monday and two to open Tuesday is a run of four, and it is the run that
+   empties an account. A 50% win rate produces a 7-loss streak at some point with
+   86% probability — that is the base rate, not bad luck. What decides whether it
+   matters is the size behind it, so the run is tracked and shown, and the number
+   that follows it is what that run would cost at the current budget. */
+
+/* Every position, every day, oldest first — the unit is the DECISION. */
+function allPositions(includeExcluded){
+  const out=[];
+  Object.keys(DB.days).sort().forEach(k=>{
+    const d=DB.days[k];
+    if(!includeExcluded && d.excl) return;
+    positionsOf(d.trades||[]).forEach(P=>out.push({date:k,res:P.res,pnl:P.pnl,qty:P.qty,
+      risk:(d.trades||[]).filter(t=>(t.grp||'')===P.grp).reduce((m,t)=>Math.max(m,+t.risk||0),0)}));
+  });
+  return out;
+}
+
+/* The run of losing positions standing BEFORE a given date — what yesterday
+   handed you. The 20-minute lockout cleared overnight; the run did not. */
+function carryInStreak(dateKey){
+  const P=allPositions(false).filter(x=>x.date<dateKey);
+  let n=0;
+  for(let i=P.length-1;i>=0;i--){ if(P[i].res==='LOSS') n++; else break; }
+  return n;
+}
+
+function streakHistory(){
+  const P=allPositions(false);
+  let cur=0,curW=0,maxL=0,maxW=0,curKind='';
+  P.forEach(x=>{
+    if(x.res==='LOSS'){ cur++; curW=0; if(cur>maxL) maxL=cur; curKind='LOSS'; }
+    else if(x.res==='WIN'){ curW++; cur=0; if(curW>maxW) maxW=curW; curKind='WIN'; }
+  });
+  return {maxLoss:maxL,maxWin:maxW,current:(curKind==='LOSS'?cur:curW),kind:curKind,n:P.length};
+}
+
+/* Expectancy in R. Position level, because one decision is one trade, and net of
+   commission because that is the money that moves. A trade with no stop has no R
+   and is left out rather than counted as zero. */
+function expectancy(){
+  const P=allPositions(false).filter(x=>x.risk>0);
+  const W=P.filter(x=>x.res==='WIN'), L=P.filter(x=>x.res==='LOSS');
+  if(!P.length) return null;
+  const avgW = W.length ? W.reduce((s,x)=>s+x.pnl/x.risk,0)/W.length : null;
+  const avgL = L.length ? Math.abs(L.reduce((s,x)=>s+x.pnl/x.risk,0)/L.length) : null;
+  const wr   = P.length ? W.length/P.length : 0;
+  const ev   = (avgW!=null&&avgL!=null) ? wr*avgW-(1-wr)*avgL : null;
+  /* What win rate this edge would need to break even, given the two averages.
+     Computable from the win side alone if you assume a 1R loss — which is the
+     assumption most traders never check. */
+  const beActual = (avgW!=null&&avgL!=null) ? avgL/(avgW+avgL) : null;
+  const beAt1R   = (avgW!=null) ? 1/(avgW+1) : null;
+  return {n:P.length,wins:W.length,losses:L.length,wr:wr,avgW:avgW,avgL:avgL,
+          ev:ev,beActual:beActual,beAt1R:beAt1R};
+}
+
 function renderStats(){
   const T=allTrades(), keys=closedKeys();
   document.getElementById('s-days').textContent=keys.length;
@@ -1682,6 +1766,45 @@ function renderStats(){
   document.getElementById('s-viol').textContent=V;
   document.getElementById('s-viol-r').className='rail '+(V?'bad':'good');
   document.getElementById('conf-warn').textContent=T.length<100?'sample too small — '+T.length+' trades':T.length+' trades';
+
+  /* ── [v4.9] streak history + expectancy ──────────────────────────────── */
+  const SH=streakHistory();
+  document.getElementById('s-mls').textContent=SH.maxLoss;
+  { const budget=CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100;
+    const cost=SH.maxLoss*budget;
+    document.getElementById('s-mls-sub').textContent=SH.maxLoss
+      ? ('$'+cost.toFixed(0)+' at budget \u00b7 '+(cost/CFG.DRAWDOWN_BUFFER*100).toFixed(0)+'% of buffer'
+         +' \u00b7 best run '+SH.maxWin)
+      : 'no losing position yet';
+    document.getElementById('s-mls-r').className='rail '+
+      (cost>=CFG.DRAWDOWN_BUFFER?'bad':cost>=CFG.DRAWDOWN_BUFFER*0.5?'warn':''); }
+
+  const EV=expectancy();
+  const evb=document.getElementById('ev-body'), evn=document.getElementById('ev-n'),
+        evh=document.getElementById('ev-help');
+  if(!EV){ evn.textContent='no data'; evb.innerHTML=''; evh.textContent=''; }
+  else{
+    evn.textContent=EV.n+' position'+(EV.n===1?'':'s')+' with a stop';
+    const row=(k,v)=>'<div class="bdrow thin"><span>'+k+'</span><span></span><span>'+v+'</span></div>';
+    let h='';
+    h+=row('win rate', (EV.wr*100).toFixed(1)+'%  ('+EV.wins+'W / '+EV.losses+'L)');
+    h+=row('average win',  EV.avgW==null?'—':EV.avgW.toFixed(2)+'R');
+    h+=row('average loss', EV.avgL==null?'— no losses yet':EV.avgL.toFixed(2)+'R');
+    h+=row('EXPECTANCY',   EV.ev==null?'NOT COMPUTABLE'
+            :(EV.ev>=0?'+':'')+EV.ev.toFixed(3)+'R per trade  ('
+             +money(EV.ev*CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100)+' at budget)');
+    h+=row('breakeven win rate', EV.beActual!=null?(EV.beActual*100).toFixed(1)+'%'
+            :(EV.beAt1R!=null?(EV.beAt1R*100).toFixed(1)+'%  (assuming a 1.00R loss)':'—'));
+    evb.innerHTML=h;
+    /* The honest caveats, stated where the number is read rather than buried. */
+    const bits=[];
+    if(EV.losses===0) bits.push('No losing position yet, so average loss is undefined and expectancy cannot be computed. '
+      +'The breakeven figure assumes your average loss lands at exactly 1.00R — check that against MAE EXCEEDS THE STOP before trusting it.');
+    if(EV.n<30) bits.push('Under 30 positions this is noise. It is shown so you can watch the sample fill.');
+    bits.push('Positions whose day is marked EXCLUDE are left out. Trades with no stop have no R and are not counted.');
+    bits.push('Expectancy says whether to play. It says nothing about surviving long enough to collect — that is the size.');
+    evh.textContent=bits.join(' ');
+  }
 
   const gc={},gw={},gs={},gz={},gv={},gg={},gi={},gsu={},gtr={},glo={},gf2={},gex={},gh={};
   T.forEach(t=>{
@@ -1957,7 +2080,8 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   'mae_pts','mfe_pts','ran_on_pts','points','r_multiple','mae_in_r','stop_headroom','capture_pct','account',
   /* [v4.7] */ 'position','parcels_in_position','position_contracts','tp_pts','planned_rr','target_action',
   'no_stop_in_market','commission_usd','pnl_net',
-  /* [v4.8] */ 'open_risk_after','day_peak_open_risk']);
+  /* [v4.8] */ 'open_risk_after','day_peak_open_risk',
+  /* [v4.9] */ 'carry_in_streak','excluded_from_stats']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* One row builder feeds the file and the clipboard, so the two can never drift
@@ -1971,7 +2095,7 @@ function buildRows(wide){
     if(!d.trades.length){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,sessNote,''];
       out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','',d.acct||'',
-        '','','','','','','','','','','']):base);
+        '','','','','','','','','','','',carryInStreak(k),(d.excl?'YES':'')]):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -1995,7 +2119,9 @@ function buildRows(wide){
         feeFor(t).toFixed(2),
         netOf(t).toFixed(2),
         (+t.openRiskAfter||0).toFixed(2),
-        ((d.openRisk&&d.openRisk.peak)||0).toFixed(2)]):base);
+        ((d.openRisk&&d.openRisk.peak)||0).toFixed(2),
+        carryInStreak(k),
+        (d.excl?'YES':'')]):base);
     });
   });
   return out;
@@ -2354,6 +2480,9 @@ async function load(){
   else                  d.acct=e.target.value.trim();
   recompute(d); save();
 }));
+document.getElementById('dd-excl').addEventListener('change',e=>{
+  const d=day(); d.excl=!!e.target.checked; save();
+});
 ['dd-grade','dd-fix','dd-note'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
   const d=day();
   if(id==='dd-grade')d.grade=e.target.value;
