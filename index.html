@@ -799,12 +799,39 @@ const RULES={
 };
 
 const DEFAULT_ACCT='FTDFYL100496975424';
+/* Seeded once, ever. migrate() adds a seed only if it has never been added
+   before — so deleting an account keeps it deleted through a redeploy. */
 const SEED_ACCOUNTS={
   'FTDFYL100496975424':{
     label:'Lightning 100K', firm:'Tradeify', product:'Lightning Funded', size:'100K',
     acctNo:'FTDFYL100496975424', phase:'funded', bought:'2026-10-02',
     startBal:100000, balance:102014.60, status:'active', cost:0,
-    selfStop:null, firmDLL:null, verified:true
+    /* 4 Oct 2026, 18:08 ET — $400 Daily Loss Limit set in Tradovate's account
+       risk settings, with "Prevent changes when trading is locked" ALSO on, so
+       the lock cannot be raised or disabled while it is in force. It sits inside
+       Tradeify's provider limit of $2,500, which is 62% of the buffer and would
+       never have stopped anything.
+       Tradovate computes it on net P/L from the 5 PM CDT session open including
+       fees and OPEN position P/L, monitored in real time — so it is stricter
+       than this journal's $400, which counts realised net only. It is enforced
+       on orders placed from TradingView, because it lives on the account rather
+       than on the front end. */
+    selfStop:400, firmDLL:2500, pdll:true, verified:true
+  },
+  /* Read off the Topstep dashboard 4 Oct 2026, 17:47 ET: balance $150,000,
+     MLL floor $145,500 (a $4,500 buffer), daily loss limit ACTIVE at $3,000,
+     consistency "best day below 55% of profit target", profit target $9,000.
+     Max position size is from Topstep's Trading Combine Parameters page rather
+     than the dashboard, which does not show it.
+     The session stop is 10% of the buffer, and as of 17:47 it is ALSO set as a
+     Personal Daily Loss Limit in TopstepX, on "temporarily deactivate for the
+     trading day" — so on this one account the rule is enforced by the platform
+     rather than by remembering it. */
+  '150KTC-SKU-V2-DLL-79543-42550652':{
+    label:'Topstep Combine 150K', firm:'Topstep', product:'Trading Combine', size:'150K',
+    acctNo:'150KTC-SKU-V2-DLL-79543-42550652', phase:'evaluation', bought:'',
+    startBal:150000, balance:150000, status:'active', cost:0,
+    selfStop:450, firmDLL:3000, pdll:true, verified:true
   }
 };
 
@@ -832,6 +859,10 @@ function resolveAcct(id){
     ID:id, LABEL:A.label||id, FIRM:A.firm||'', PRODUCT:A.product||'', SIZE:A.size||'',
     ACCT_NO:A.acctNo||'', BOUGHT:A.bought||'', STATUS:A.status||'active',
     VERIFIED:!!A.verified, XFA:!!P.xfa, PNOTE:P.note||'', SCALE:P.scale||null,
+    /* Is the session stop enforced by the PLATFORM, or only by you remembering
+       it? A rule the broker will act on is a different instrument from a rule
+       written in a journal, and the journal should not blur the two. */
+    PDLL:!!A.pdll,
     BALANCE:+A.balance||0, START_BAL:+A.startBal||0, COST:+A.cost||0,
     PROFIT:(+A.balance||0)-(+A.startBal||0),
     DRAWDOWN_BUFFER:buffer,
@@ -1670,6 +1701,10 @@ function preflight(){
   if(cap===0&&!v.length) v.push('Size cap is 0 at this Panel P score — no trade permitted');
 
   if(!A.VERIFIED) wn.push(A.LABEL+' is UNVERIFIED — every number below is a catalog preset, not something you have checked against the dashboard');
+  /* A session stop nothing will act on is a note to yourself. Say which one
+     this is, every session, rather than letting the number imply enforcement
+     it does not have. */
+  if(!A.PDLL) wn.push('The '+money(A.DAILY_LOSS_LIMIT)+' session stop on '+A.LABEL+' is advisory — nothing will act on it. The platform’s own daily-loss setting is what makes it real.');
   if(A.PNOTE) wn.push(A.LABEL+': '+A.PNOTE);
   if(!d.panelF) wn.push('Panel F not locked — ceiling held at '+A.CEILING.NO_PANEL_F+' until you set it');
   if(esg<2) wn.push('Emotional state '+esg+'/3 — restricted: 6/6 and 1 contract only');
@@ -1716,6 +1751,7 @@ function paintAcctInfo(A){
               'ceil '+A.CEILING.EXPANDING_3,
               'firm max '+A.MAX_CONTRACTS];
   if(A.FIRM_DLL) bits.push('firm DLL '+money(A.FIRM_DLL));
+  bits.push(A.PDLL?'stop enforced at platform':'stop advisory only');
   if(A.XFA)      bits.push('XFA — buffer tracks balance');
   el.textContent=bits.join(' · ');
   el.style.color=A.VERIFIED?'var(--gy)':'var(--o1)';
@@ -2390,7 +2426,8 @@ function renderAccounts(){
         +(id===DB.currentAcct?' <span style="color:var(--acc)">· CURRENT</span>':'')+'</div>'
       +'<div class="card-n">'+A.FIRM+' · '+A.PRODUCT+' · '+A.SIZE+'</div></div>'
       +row('trailing drawdown', money(A.DRAWDOWN_BUFFER)+(A.XFA?' (tracks balance)':''))
-      +row('your session stop', money(A.DAILY_LOSS_LIMIT)+' · '+RULES.SESSION_STOP_PCT+'% of buffer')
+      +row('your session stop', money(A.DAILY_LOSS_LIMIT)+' · '+RULES.SESSION_STOP_PCT+'% of buffer'
+           +(A.PDLL?' · ENFORCED AT THE PLATFORM':' · advisory only'))
       +row('per-trade budget', money(bud)+' · '+mic+' MNQ micro'+(mic===1?'':'s')+' at 12.5 pts')
       +row('ceiling ladder tops at', A.CEILING.EXPANDING_3)
       +row('firm daily loss limit', A.FIRM_DLL?money(A.FIRM_DLL):(A.DLL_OPTIONAL?'declined at purchase':'none'))
@@ -2934,9 +2971,17 @@ function migrate(){
   if(!DB.days) DB.days={};
   /* [v5.0.0] Seed the registry before anything reads it — recompute() below
      resolves an account for every trade, so the accounts must exist first. */
-  if(!DB.accounts||!Object.keys(DB.accounts).length){
-    DB.accounts=JSON.parse(JSON.stringify(SEED_ACCOUNTS));
-  }
+  if(!DB.accounts) DB.accounts={};
+  /* Add each seed exactly once in the life of this store. A redeploy picks up
+     accounts added to SEED_ACCOUNTS since, without resurrecting one the user
+     deliberately removed and without ever overwriting edits to a live row. */
+  DB.seededIds=DB.seededIds||[];
+  Object.keys(SEED_ACCOUNTS).forEach(id=>{
+    if(DB.seededIds.indexOf(id)<0){
+      if(!DB.accounts[id]) DB.accounts[id]=JSON.parse(JSON.stringify(SEED_ACCOUNTS[id]));
+      DB.seededIds.push(id);
+    }
+  });
   if(!DB.currentAcct||!DB.accounts[DB.currentAcct])
     DB.currentAcct=Object.keys(DB.accounts)[0]||DEFAULT_ACCT;
   DB.schema=5;
