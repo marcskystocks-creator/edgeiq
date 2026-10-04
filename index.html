@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v4.9.0</title>
+<title>EDGEIQ — Journal v5.0.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -164,7 +164,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v4.9.0</div>
+    <div class="chip" title="build version">v5.0.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -180,6 +180,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
   <button class="tab" id="tb-log" onclick="go('log')">RUNNING LOG</button>
   <button class="tab" id="tb-stats" onclick="go('stats')">BREAKDOWN</button>
   <button class="tab" id="tb-rules" onclick="go('rules')">SIZE LADDER</button>
+  <button class="tab" id="tb-accts" onclick="go('accts')">ACCOUNTS</button>
   <button class="tab" id="tb-data" onclick="go('data')">DATA</button>
 </div>
 
@@ -225,9 +226,8 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         </select>
       </div>
       <div>
-        <label class="lbl" for="f-acct">ACCOUNT</label>
-        <input class="inp" id="f-acct" list="acctlist" placeholder="50K Select eval" autocomplete="off"/>
-        <datalist id="acctlist"></datalist>
+        <label class="lbl" for="f-acct">ACCOUNT — default for new trades</label>
+        <select class="sel" id="f-acct"></select>
       </div>
     </div>
 
@@ -242,6 +242,10 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
   <div class="card">
     <div class="card-h"><div class="card-t">LOG TRADE</div><div class="card-n">entry time auto-fills — edit it if logging late</div></div>
     <div id="preflight"></div>
+    <div class="grid g2" style="margin-bottom:7px">
+      <div><label class="lbl" for="t-acct">ACCOUNT THIS TRADE IS ON</label><select class="sel" id="t-acct"></select></div>
+      <div><label class="lbl">WHAT ITS RULES SAY</label><div class="inp" id="t-acctinfo" style="color:var(--gy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div></div>
+    </div>
     <div id="sizebar"></div>
 
     <div class="grid g4" style="margin-bottom:7px">
@@ -499,6 +503,8 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       <input class="inp" id="dd-note" placeholder="added 5 lots to an open 1-lot at 10:42, 19 points higher"/>
     </div>
     <button class="btn acc" onclick="closeDay()">SAVE AND CLOSE DAY</button>
+    <button class="btn dgr" style="margin-top:7px" id="donebtn" onclick="doneForDay()">I AM DONE FOR THE DAY — STOP HERE</button>
+    <div class="help">Nothing but your platform's order settings can stop you trading, and this button does not pretend otherwise. What it does is make the decision a thing you did at the moment you knew, rather than something you conclude at 2 PM about a choice you had already made at 10:40. It applies to <b>every account</b>, and it does not come off.</div>
   </div>
 </div>
 
@@ -563,16 +569,16 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 <!-- ============ SIZE LADDER ============ -->
 <div class="pane" id="p-rules">
   <div class="card">
-    <div class="card-h"><div class="card-t">THE DAY CEILING</div><div class="card-n">locked 9:45 · ratchets down only</div></div>
+    <div class="card-h"><div class="card-t">THE DAY CEILING</div><div class="card-n" id="lad-acct">locked 9:45 · ratchets down only</div></div>
     <div class="help" style="margin-top:0">The ceiling is set the moment Panel F is locked and the emotional gate is answered. Nothing during the session raises it. Not a 6/6. Not four winners. Not being up money. A winning streak cannot increase size — that is the whole point of the mechanism.</div>
     <table class="ladder" style="margin-top:10px">
       <tr><th>DAY STATE AT 9:45</th><th>CEILING</th></tr>
       <tr><td>Panel F not locked</td><td>1</td></tr>
       <tr><td>PRICE LIE</td><td>0 — no trades</td></tr>
       <tr><td>Emotional gate 0/3 or 1/3</td><td>1</td></tr>
-      <tr><td>CONTRACTING · gate 2/3</td><td>1</td></tr>
-      <tr><td>CONTRACTING · gate 3/3</td><td>2</td></tr>
-      <tr><td>EXPANDING · gate 2/3</td><td>3</td></tr>
+      <tr><td>CONTRACTING · gate 2/3</td><td id="lad-c2">1</td></tr>
+      <tr><td>CONTRACTING · gate 3/3</td><td id="lad-c3">2</td></tr>
+      <tr><td>EXPANDING · gate 2/3</td><td id="lad-e2">3</td></tr>
       <tr><td>EXPANDING · gate 3/3</td><td id="lad-max">10</td></tr>
     </table>
   </div>
@@ -609,8 +615,44 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
   </div>
 
   <div class="card">
-    <div class="card-h"><div class="card-t">TUNE IT</div><div class="card-n">edit CFG at the top of the script</div></div>
-    <div class="help" style="margin-top:0">Every number on this page comes from the CFG block in the source. Change it in one place and the ladder, the preflight, the contract dropdown and the violation engine all follow. Do not change it during a session.</div>
+    <div class="card-h"><div class="card-t">TUNE IT</div><div class="card-n">ACCOUNTS tab · not the source</div></div>
+    <div class="help" style="margin-top:0">Every number on this page is derived from the account selected for the day — its buffer sets the session stop, the session stop sets the per-trade budget, and the budget divided by your stop sets the size. Change the account and the whole page follows. The only figure you set by hand is your own session stop, on the ACCOUNTS tab; everything else comes from the catalog. <b style="color:var(--y1)">The firm's maximum is a ceiling, not a risk control</b> — across every product in the catalog it permits between 50% and 83% of the account on a single trade. Yours is the number that binds.</div>
+  </div>
+</div>
+
+<!-- ============ ACCOUNTS ============ -->
+<div class="pane" id="p-accts">
+  <div class="card">
+    <div class="card-h"><div class="card-t">ACCOUNTS</div><div class="card-n" id="acct-n">—</div></div>
+    <div class="help" style="margin-top:0">Pick a firm and a product and every risk number fills itself in from the catalog. <b style="color:var(--y1)">A new account is UNVERIFIED until you confirm it against the firm's own dashboard</b> — the preset shows, but it is flagged, and so is every trade taken on it. On 2 October the Select Flex 50K was traded in the belief that it carried a $1,000 daily loss limit. It carried none, and the belief came from the product name rather than the screen.</div>
+    <div id="acctrows" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><div class="card-t">ADD AN ACCOUNT</div><div class="card-n">catalog compiled <span id="cat-date">—</span></div></div>
+    <div class="grid g3" style="margin-bottom:7px">
+      <div><label class="lbl" for="a-firm">FIRM</label><select class="sel" id="a-firm"></select></div>
+      <div><label class="lbl" for="a-prod">PRODUCT</label><select class="sel" id="a-prod"></select></div>
+      <div><label class="lbl" for="a-size">SIZE</label><select class="sel" id="a-size"></select></div>
+    </div>
+    <div class="grid g3" style="margin-bottom:7px">
+      <div><label class="lbl" for="a-label">LABEL YOU WILL RECOGNISE</label><input class="inp" id="a-label" placeholder="Select Flex 50K"/></div>
+      <div><label class="lbl" for="a-no">ACCOUNT NUMBER</label><input class="inp" id="a-no" placeholder="FTDFY…"/></div>
+      <div><label class="lbl" for="a-bought">PURCHASED</label><input class="inp" id="a-bought" type="date"/></div>
+    </div>
+    <div class="grid g4" style="margin-bottom:7px">
+      <div><label class="lbl" for="a-bal">CURRENT BALANCE</label><input class="inp" id="a-bal" type="number" step="0.01" placeholder="100000"/></div>
+      <div><label class="lbl" for="a-cost">WHAT IT COST</label><input class="inp" id="a-cost" type="number" step="0.01" placeholder="149"/></div>
+      <div><label class="lbl" for="a-stop">YOUR SESSION STOP</label><input class="inp" id="a-stop" type="number" step="1" placeholder="blank = 10% of buffer"/></div>
+      <div><label class="lbl" for="a-dll">FIRM DAILY LOSS LIMIT</label><select class="sel" id="a-dll">
+        <option value="">product default</option>
+        <option value="0">declined it at purchase</option>
+        <option value="yes">took it</option>
+      </select></div>
+    </div>
+    <div id="a-preview"></div>
+    <button class="btn acc" onclick="addAccount()">ADD ACCOUNT</button>
+    <div class="help">The firm's daily loss limit is a choice at purchase on Topstep, so it is an account fact rather than a product fact — two accounts of the same size can differ. Your own session stop is the one that binds either way.</div>
   </div>
 </div>
 
@@ -677,59 +719,171 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
-   CFG — every rule number lives here. Change it in one place.
-   Do not change it during a session.
+   [v5.0.0] PRODUCT CATALOG + ACCOUNT REGISTRY
+
+   v4.9 held ONE CFG block hard-coded to the Lightning 100K. Every number it
+   produced — ceiling, risk as a % of buffer, violation flags, R — was right for
+   that account and silently wrong for any other, and a second account could not
+   be held at all.
+
+   Two layers now. PRODUCTS is what the FIRM says, compiled 4 Oct 2026 from
+   Tradeify's and Topstep's own help centres. ACCOUNTS is what you actually
+   hold: which product, plus the facts a catalog cannot know — account number,
+   start date, balance, cost, and your own session stop.
+
+   Every account starts UNVERIFIED. On 2 Oct the Select Flex 50K was traded in
+   the belief that it carried a $1,000 daily loss limit. It carried none, and
+   the belief came from the product name rather than the dashboard. A catalog
+   that auto-fills a wrong buffer is worse than no catalog, so a preset is shown
+   but stays flagged until it is confirmed against the firm's own screen.
    ═══════════════════════════════════════════════════════════════════════════ */
-const CFG={
-  /* [v4.6.0] Rebuilt for LIGHTNING FUNDED 100K — FTDFYL100496975424.
-     The Select Flex 50K was lost 2 Oct 2026 to an unchecked quantity box: 20
-     contracts fired instead of the intended size. At 20 MNQ the account is $40
-     a point, so the $2,000 buffer was 50 points wide. Nothing in this file could
-     have stopped it — a journal records, it does not execute. The control that
-     prevents a repeat lives in Tradovate's default quantity and max position
-     size, not here. Set those first; treat these numbers as the second line.
+const CATALOG_DATE='2026-10-04';
 
-     Firm constraints on this account, read off the dashboard:
-       trailing max drawdown  $96,000  ($4,000 from the $100,000 start)
-       daily loss limit       $2,500   (62% of the buffer — NOT a risk control)
-       consistency              20%    no day may exceed 20% of total profit
-       minimum profit         $6,000   the consistency rule can raise this
+/* buffer  — trailing max drawdown. The number that actually ends the account.
+   dll     — the FIRM's daily loss limit, 0 = none. Never a risk control: on the
+             Lightning 100K it is 62% of the entire buffer.
+   dllOpt  — the firm offers it as a choice at purchase, so it is an INSTANCE
+             fact, not a product fact. Two accounts of one size can differ.
+   scale   — funded contract scaling, [[profitAbove, minis], …] or null.
+   consist — [percent, basis]. 'total' = share of total profit (Tradeify, XFA
+             Consistency). 'target' = share of the profit target (Topstep
+             Combine) — a looser rule that raises the target rather than failing
+             the account. They are not the same rule and must not be merged. */
+const PRODUCTS={
+  'Tradeify|Lightning Funded|25K' :{buffer:1000,dll:0,   minis:1, micros:10, scale:null,consist:[20,'total'],target:1500,note:'no daily loss limit at this size'},
+  'Tradeify|Lightning Funded|50K' :{buffer:2000,dll:1250,minis:4, micros:40, scale:null,consist:[20,'total'],target:3000},
+  'Tradeify|Lightning Funded|100K':{buffer:4000,dll:2500,minis:8, micros:80, scale:null,consist:[20,'total'],target:6000},
+  'Tradeify|Lightning Funded|150K':{buffer:5250,dll:3000,minis:12,micros:120,scale:null,consist:[20,'total'],target:9000,note:'product page says 5,250; the lock table implies 6,000 and looks stale. Confirm on the dashboard before sizing.'},
 
-     DAILY_LOSS_LIMIT below is self-imposed at 10% of the buffer. RISK_BUDGET_PCT
-     takes 25% of that per trade = $100, which at the 100-tick stop cap is 2
-     contracts. The stop buys the size; a wider stop buys less. */
-  MAX_CONTRACTS:10,            // dropdown ceiling only — the risk budget is the real cap
-  BASE_CONTRACTS:1,
-  DAILY_LOSS_LIMIT:400,        // self-imposed session stop = 10% of the $4,000 buffer.
-                               // The FIRM's daily limit is $2,500 — that is 62% of the
-                               // whole account in one session. It is not a risk control.
-  DRAWDOWN_BUFFER:4000,        // Lightning 100K trailing max drawdown (100,000 -> 96,000)
-  CONSISTENCY_PCT:20,          // no single day may exceed 20% of total profit at payout
-  MIN_PROFIT:6000,             // stated payout minimum — the consistency rule can raise it
-  COMMISSION_SIDE:0.95,        // per contract per side — verified twice against live fills
-  UNIT_SANITY_PTS:100,         // above this, a "points" entry is probably a tick count
-  MIN_RR:1.5,                  // target over stop. Below this the trade needs a win rate
-                               // you have never demonstrated — see the R:R gate in analyze()
-  MAX_TRADES:30,
-  RISK_BUDGET_PCT:25,          // most one trade may risk, as % of the daily limit.
-                               // This DERIVES a size cap from the stop: a wide stop
-                               // buys fewer contracts. The ladder and the budget both
-                               // apply; the smaller one wins.
-  LOCKOUT_MINUTES:20,          // 3-loss streak lockout, from the last loss's exit
-  STOP_CAP_TICKS:100,          // CONTRACTING stop cap
-  TICK_SIZE:0.25,
+  'Tradeify|Select Evaluation|25K' :{buffer:1000,dll:0,minis:1, micros:10, scale:null,consist:[40,'total'],target:1500},
+  'Tradeify|Select Evaluation|50K' :{buffer:2000,dll:0,minis:4, micros:40, scale:null,consist:[40,'total'],target:3000},
+  'Tradeify|Select Evaluation|100K':{buffer:3000,dll:0,minis:8, micros:80, scale:null,consist:[40,'total'],target:6000},
+  'Tradeify|Select Evaluation|150K':{buffer:4500,dll:0,minis:12,micros:120,scale:null,consist:[40,'total'],target:9000},
+
+  'Tradeify|Select Flex|25K' :{buffer:1000,dll:0,minis:2, micros:20, scale:[[0,1],[1500,2]],                            consist:[0,''],target:0},
+  'Tradeify|Select Flex|50K' :{buffer:2000,dll:0,minis:4, micros:40, scale:[[0,2],[1500,3],[2000,4]],                   consist:[0,''],target:0},
+  'Tradeify|Select Flex|100K':{buffer:3000,dll:0,minis:8, micros:80, scale:[[0,3],[1500,4],[2000,5],[3000,8]],          consist:[0,''],target:0},
+  'Tradeify|Select Flex|150K':{buffer:4500,dll:0,minis:12,micros:120,scale:[[0,3],[1500,4],[2000,5],[3000,8],[4500,12]],consist:[0,''],target:0},
+
+  'Tradeify|Select Daily|25K' :{buffer:1000,dll:500, minis:2, micros:20, scale:[[0,1],[1500,2]],                            consist:[0,''],target:0},
+  'Tradeify|Select Daily|50K' :{buffer:2000,dll:1000,minis:4, micros:40, scale:[[0,2],[1500,3],[2000,4]],                   consist:[0,''],target:0},
+  'Tradeify|Select Daily|100K':{buffer:2500,dll:1250,minis:8, micros:80, scale:[[0,3],[1500,4],[2000,5],[3000,8]],          consist:[0,''],target:0},
+  'Tradeify|Select Daily|150K':{buffer:3500,dll:1750,minis:12,micros:120,scale:[[0,3],[1500,4],[2000,5],[3000,8],[4500,12]],consist:[0,''],target:0},
+
+  'Topstep|Trading Combine|50K' :{buffer:2000,dll:1000,dllOpt:true,minis:5, micros:50, scale:null,consist:[55,'target'],target:3000},
+  'Topstep|Trading Combine|100K':{buffer:3000,dll:2000,dllOpt:true,minis:10,micros:100,scale:null,consist:[55,'target'],target:6000},
+  'Topstep|Trading Combine|150K':{buffer:4500,dll:3000,dllOpt:true,minis:15,micros:150,scale:null,consist:[55,'target'],target:9000},
+
+  /* An XFA starts at a $0 BALANCE — the size label is buying power. The MLL
+     trails up and locks at $0, after which the balance itself is the floor. So
+     the buffer GROWS with earned capital, the only product here that does. */
+  'Topstep|Express Funded (Standard)|50K'    :{buffer:2000,dll:1000,dllOpt:true,minis:5, micros:50, scale:[[0,2],[1500,3],[2000,5]],                  consist:[0,''],    target:0,xfa:true},
+  'Topstep|Express Funded (Standard)|100K'   :{buffer:3000,dll:2000,dllOpt:true,minis:10,micros:100,scale:[[0,3],[1500,4],[2000,5],[3000,10]],        consist:[0,''],    target:0,xfa:true},
+  'Topstep|Express Funded (Standard)|150K'   :{buffer:4500,dll:3000,dllOpt:true,minis:15,micros:150,scale:[[0,3],[1500,4],[2000,5],[3000,10],[4500,15]],consist:[0,''],  target:0,xfa:true},
+  'Topstep|Express Funded (Consistency)|50K' :{buffer:2000,dll:1000,dllOpt:true,minis:5, micros:50, scale:[[0,2],[1500,3],[2000,5]],                  consist:[40,'total'],target:0,xfa:true},
+  'Topstep|Express Funded (Consistency)|100K':{buffer:3000,dll:2000,dllOpt:true,minis:10,micros:100,scale:[[0,3],[1500,4],[2000,5],[3000,10]],        consist:[40,'total'],target:0,xfa:true},
+  'Topstep|Express Funded (Consistency)|150K':{buffer:4500,dll:3000,dllOpt:true,minis:15,micros:150,scale:[[0,3],[1500,4],[2000,5],[3000,10],[4500,15]],consist:[40,'total'],target:0,xfa:true}
+};
+
+/* Person-level rules. These belong to the TRADER and do not change when the
+   account changes mid-session: a three-loss run is about you, not about where
+   the trades happened to be placed. */
+const RULES={
+  BASE_CONTRACTS:1, MAX_TRADES:30, LOCKOUT_MINUTES:20, STOP_CAP_TICKS:100,
+  TICK_SIZE:0.25, MIN_RR:1.5, UNIT_SANITY_PTS:100,
+  SESSION_STOP_PCT:10,      // self-imposed session stop, as % of that account's buffer
+  RISK_BUDGET_PCT:25,       // most one trade may risk, as % of the session stop
+  COMMISSION_SIDE:0.95,     // per contract per side — verified twice against live fills
   POINT_VALUE:{MNQ:2,NQ:20,MES:5,ES:50},
-  // Day ceiling, locked at 9:45. Ratchets DOWN only.
-  /* [v4.6.1] Rescaled for the 100K. These were absolute contract counts tuned
-     for the 50K's $50 budget; v4.6.0 doubled the budget to $100 and left these
-     untouched, so the ladder's two halves stopped agreeing — the stop would
-     afford 10 while the ceiling still said 1, and the ceiling looked stuck.
-     Top is 6, not 20: twenty contracts is what ended the 50K this morning and
-     there will be no path back to it. */
-  CEILING:{ PRICE_LIE:0, NO_PANEL_F:1, ESG_LOW:1, CONTRACTING_2:2, CONTRACTING_3:3, EXPANDING_2:4, EXPANDING_3:6 },
-  // Per-trade fraction of the day ceiling, by Panel P score at entry
   CONF_FRACTION:{'6/6':1.0,'5/6':0.4,'4/6':0.1,'3/6':0,'2/6 or less':0}
 };
+
+const DEFAULT_ACCT='FTDFYL100496975424';
+const SEED_ACCOUNTS={
+  'FTDFYL100496975424':{
+    label:'Lightning 100K', firm:'Tradeify', product:'Lightning Funded', size:'100K',
+    acctNo:'FTDFYL100496975424', phase:'funded', bought:'2026-10-02',
+    startBal:100000, balance:102014.60, status:'active', cost:0,
+    selfStop:null, firmDLL:null, verified:true
+  }
+};
+
+let DB={days:{},accounts:{},currentAcct:DEFAULT_ACCT,lastBackup:null};
+
+/* resolveAcct — the catalog entry plus the instance, flattened into the shape
+   the rest of the app already reads. Keeping the v4.9 key names means every
+   existing call site keeps working; what changes is which account answers. */
+function resolveAcct(id){
+  const A=((DB&&DB.accounts)||{})[id]||SEED_ACCOUNTS[DEFAULT_ACCT];
+  const P=PRODUCTS[A.firm+'|'+A.product+'|'+A.size]||{};
+  const base   = +A.buffer || +P.buffer || 4000;
+  /* An XFA's floor locks at $0 and the remaining balance becomes the limit, so
+     its risk budget grows with capital actually earned. Everything else is a
+     fixed buffer and ignores the balance entirely. */
+  const buffer = P.xfa ? Math.max(base,+A.balance||0) : base;
+  const stop   = (A.selfStop!=null&&A.selfStop!=='') ? +A.selfStop
+                                                     : Math.round(buffer*RULES.SESSION_STOP_PCT/100);
+  const micros = +A.maxContracts || +P.micros || 10;
+  /* The ceiling ladder scales with the buffer, anchored on the Lightning 100K
+     where EXPANDING at a full emotional gate tops out at 6 — so that account's
+     numbers are unchanged by this rebuild. Capped by the firm's own limit. */
+  const top    = Math.max(2,Math.min(micros,+A.ceilTop||Math.round(6*buffer/4000)));
+  return {
+    ID:id, LABEL:A.label||id, FIRM:A.firm||'', PRODUCT:A.product||'', SIZE:A.size||'',
+    ACCT_NO:A.acctNo||'', BOUGHT:A.bought||'', STATUS:A.status||'active',
+    VERIFIED:!!A.verified, XFA:!!P.xfa, PNOTE:P.note||'', SCALE:P.scale||null,
+    BALANCE:+A.balance||0, START_BAL:+A.startBal||0, COST:+A.cost||0,
+    PROFIT:(+A.balance||0)-(+A.startBal||0),
+    DRAWDOWN_BUFFER:buffer,
+    FIRM_DLL:(A.firmDLL!=null&&A.firmDLL!=='')?+A.firmDLL:(P.dllOpt?0:(+P.dll||0)),
+    DLL_OPTIONAL:!!P.dllOpt,
+    DAILY_LOSS_LIMIT:stop,
+    MAX_CONTRACTS:micros,
+    CONSISTENCY_PCT:(P.consist&&P.consist[0])||0,
+    CONSISTENCY_BASIS:(P.consist&&P.consist[1])||'',
+    MIN_PROFIT:+P.target||0,
+    CEILING:{PRICE_LIE:0, NO_PANEL_F:1, ESG_LOW:1,
+             CONTRACTING_2:Math.max(1,Math.round(top*0.34)),
+             CONTRACTING_3:Math.max(1,Math.round(top*0.5)),
+             EXPANDING_2:Math.max(1,Math.round(top*0.67)),
+             EXPANDING_3:top},
+    BASE_CONTRACTS:RULES.BASE_CONTRACTS, MAX_TRADES:RULES.MAX_TRADES,
+    LOCKOUT_MINUTES:RULES.LOCKOUT_MINUTES, STOP_CAP_TICKS:RULES.STOP_CAP_TICKS,
+    TICK_SIZE:RULES.TICK_SIZE, MIN_RR:RULES.MIN_RR,
+    UNIT_SANITY_PTS:RULES.UNIT_SANITY_PTS, RISK_BUDGET_PCT:RULES.RISK_BUDGET_PCT,
+    COMMISSION_SIDE:RULES.COMMISSION_SIDE, POINT_VALUE:RULES.POINT_VALUE,
+    CONF_FRACTION:RULES.CONF_FRACTION
+  };
+}
+
+/* A trade carries its own account; the day supplies the default for new ones.
+   This is the whole of the v5 data-model change — the account moved from the
+   DAY to the TRADE, so one day's log can span every account you touched. */
+function acctIdOf(t,d){ return (t&&t.acct)||(d&&d.acct)||DB.currentAcct||DEFAULT_ACCT; }
+function A_of(t,d){ return resolveAcct(acctIdOf(t,d)); }
+
+/* CFG is a live view of the CURRENT account rather than a constant, so every
+   v4.9 call site keeps reading CFG and keeps being right about the account on
+   screen. Anything judging a SPECIFIC trade resolves that trade's account
+   explicitly instead — see analyze(). */
+let CFG=resolveAcct(DEFAULT_ACCT);
+function syncCFG(){ CFG=resolveAcct(DB.currentAcct||DEFAULT_ACCT); }
+
+/* HISTORY — what the single CFG block said, kept because the reasoning still
+   governs the Lightning 100K row in PRODUCTS above.
+
+   "Rebuilt for LIGHTNING FUNDED 100K. The Select Flex 50K was lost 2 Oct 2026 to
+    an unchecked quantity box: 20 contracts fired instead of the intended size.
+    At 20 MNQ the account is $40 a point, so the $2,000 buffer was 50 points
+    wide. Nothing in this file could have stopped it — a journal records, it does
+    not execute. The control that prevents a repeat lives in Tradovate's default
+    quantity and max position size, not here. Set those first; treat these
+    numbers as the second line."
+
+   That is still true in v5, and it is now true of every account in the registry
+   rather than one. The firm's limits in PRODUCTS are documentation of what you
+   are ALLOWED to do, never a statement of what is survivable: on the Lightning
+   100K the firm's own daily loss limit is 62% of the entire buffer. */
 
 /* ---------- STORAGE SHIM ---------- */
 const MEM={};
@@ -745,17 +899,20 @@ const S={
 };
 const KEY='edgeiq_journal_v2';   // same key as v2/v3 — existing data carries over
 
-let DB={days:{},lastBackup:null};
 let VIEW=etDate();
 
 /* A new day inherits the account from the most recent day that named one.
    Retyping it every morning is how a field ends up blank for a week. */
 function lastAccount(){
   const ks=Object.keys(DB.days).sort();
-  for(let i=ks.length-1;i>=0;i--){ const a=DB.days[ks[i]].acct; if(a) return a; }
-  return '';
+  for(let i=ks.length-1;i>=0;i--){ const a=DB.days[ks[i]].acct; if(a&&DB.accounts[a]) return a; }
+  return DB.currentAcct||DEFAULT_ACCT;
 }
-function blankDay(d){return {date:d,panelF:'',vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false};}
+/* [v5.0.0] d.acct is now only the DEFAULT for new trades on this day. The
+   account that governs a trade's ceiling, buffer and flags is the one stored on
+   the trade itself, so switching accounts mid-session is a first-class action
+   and the running log spans all of them. */
+function blankDay(d){return {date:d,panelF:'',vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -783,7 +940,10 @@ function parseMins(s){
 }
 function fmtMins(t){return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');}
 function money(n){return (n<0?'-$':'$')+Math.abs(n).toFixed(2);}
-function pv(ins){ return CFG.POINT_VALUE[ins||'MNQ']||2; }
+function pv(ins){ return RULES.POINT_VALUE[ins||'MNQ']||2; }
+/* Accounts, oldest first, for the selectors. */
+function acctIds(){ return Object.keys(DB.accounts||{}); }
+function acctLabel(id){ const a=(DB.accounts||{})[id]; return a?(a.label||id):(id||'—'); }
 
 /* ---------- WINDOWS ---------- */
 const W=[
@@ -798,14 +958,20 @@ function windowAt(t){ return W.find(w=>t>=w.a&&t<w.b)||W[W.length-1]; }
 /* ═══════════════════════════════════════════════════════════════════════════
    THE SIZE LADDER
    ═══════════════════════════════════════════════════════════════════════════ */
-function ceilingFor(d){
-  if(d.panelF==='PRICE_LIE') return CFG.CEILING.PRICE_LIE;
-  if(!d.panelF)              return CFG.CEILING.NO_PANEL_F;
+/* [v5.0.0] Every one of these takes the account whose rules apply. Omitting it
+   falls back to the account on screen, which is what every v4.9 caller meant.
+   Panel F and the emotional gate are properties of the DAY — they describe the
+   market and the trader, not the venue — so the shape of the ladder is shared
+   and only its height moves with the buffer. */
+function ceilingFor(d,A){
+  A=A||CFG;
+  if(d.panelF==='PRICE_LIE') return A.CEILING.PRICE_LIE;
+  if(!d.panelF)              return A.CEILING.NO_PANEL_F;
   const esg=(d.esg||[]).filter(Boolean).length;
-  if(esg<=1)                 return CFG.CEILING.ESG_LOW;
-  if(d.panelF==='CONTRACTING') return esg>=3?CFG.CEILING.CONTRACTING_3:CFG.CEILING.CONTRACTING_2;
-  if(d.panelF==='EXPANDING')   return esg>=3?CFG.CEILING.EXPANDING_3:CFG.CEILING.EXPANDING_2;
-  return CFG.BASE_CONTRACTS;
+  if(esg<=1)                 return A.CEILING.ESG_LOW;
+  if(d.panelF==='CONTRACTING') return esg>=3?A.CEILING.CONTRACTING_3:A.CEILING.CONTRACTING_2;
+  if(d.panelF==='EXPANDING')   return esg>=3?A.CEILING.EXPANDING_3:A.CEILING.EXPANDING_2;
+  return A.BASE_CONTRACTS;
 }
 
 /* Soft flags are missing paperwork, not broken rules. They are shown, counted
@@ -813,15 +979,20 @@ function ceilingFor(d){
    violation: it counts, and it drops the ceiling to base for the rest of the day. */
 const SOFT_FLAGS=['F2 NOT CHECKED','LOCATION NOT RECORDED','SETUP NOT RECORDED',
                   'NO EXIT TIME','EXIT TYPE NOT RECORDED','NO STOP LOGGED',
-                  'PANEL P NOT RECORDED','EXCURSION NOT RECORDED','TARGET NOT RECORDED','CARRY-IN STREAK'];
+                  'PANEL P NOT RECORDED','EXCURSION NOT RECORDED','TARGET NOT RECORDED','CARRY-IN STREAK',
+                  /* [v5.0.0] An unconfirmed preset is missing paperwork, not a broken rule.
+                     It must be visible on every trade it touches — but ratcheting the whole
+                     day's ceiling over it would punish the trading for an admin gap. */
+                  'ACCOUNT UNVERIFIED'];
 function isHard(f){ return SOFT_FLAGS.indexOf(String(f).split(' — ')[0])<0; }
 function hardCount(t){ return (t.flags||[]).filter(isHard).length; }
 function softCount(t){ return (t.flags||[]).filter(f=>!isHard(f)).length; }
 
 // Effective ceiling after the ratchet. A prior HARD violation drops it to base.
-function ratchetedCeiling(d,prior){
-  let c=ceilingFor(d);
-  if(prior.some(p=>hardCount(p)>0)) c=Math.min(c,CFG.BASE_CONTRACTS);
+function ratchetedCeiling(d,prior,A){
+  A=A||CFG;
+  let c=ceilingFor(d,A);
+  if(prior.some(p=>hardCount(p)>0)) c=Math.min(c,A.BASE_CONTRACTS);
   return c;
 }
 
@@ -829,7 +1000,8 @@ function ratchetedCeiling(d,prior){
    no reason reads as broken — and on eleven of the sixteen Panel F / ESG
    combinations the honest answer is 1, which looks identical to a bug. Naming
    the binding input turns a stuck number into an instruction. */
-function ceilingReason(d,prior){
+function ceilingReason(d,prior,A){
+  A=A||CFG;
   if(prior&&prior.some(p=>hardCount(p)>0)) return 'ratcheted to base by an earlier hard violation — it cannot be raised again today';
   if(d.panelF==='PRICE_LIE') return 'PRICE LIE is a hard veto — no size is permitted at all';
   if(!d.panelF)              return 'Panel F is not set — until it is, the ceiling stays at base';
@@ -844,12 +1016,17 @@ function ceilingReason(d,prior){
    12 lots inside a $300 budget; a 43.75-pt stop buys 3. Returns null if no stop
    has been defined — in which case the ladder alone applies and the trade is
    flagged for having no stop. */
-function riskCapFor(stopPts,ins){
+function riskCapFor(stopPts,ins,A){
+  A=A||CFG;
   const s=+stopPts||0;
   if(s<=0) return null;
-  const budget=CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100;
+  const budget=A.DAILY_LOSS_LIMIT*A.RISK_BUDGET_PCT/100;
   return Math.max(0,Math.floor(budget/(s*pv(ins))));
 }
+/* The per-trade risk budget for an account: 25% of a session stop that is
+   itself 10% of that account's buffer. One rule, different dollars per account —
+   which is the correctly scaled version, not the looser one. */
+function budgetOf(A){ A=A||CFG; return A.DAILY_LOSS_LIMIT*A.RISK_BUDGET_PCT/100; }
 
 /* When the 3-loss lockout clears, in minutes-of-day. Null when no lockout is
    running. Measured from the LAST loss's exit, so a fourth loss restarts it.
@@ -868,8 +1045,14 @@ function lockoutEnd(prior){
 }
 
 // Max contracts allowed for THIS trade, given everything before it.
-function tradeCap(d,prior,conf,stopPts,ins,mins){
-  const frac=CFG.CONF_FRACTION[conf];
+/* [v5.0.0] `prior` stays the whole day's trades regardless of account. Streaks,
+   the lockout and the 30-trade cap are person-level by design — switching
+   accounts after three losses must not hand you a clean slate, which is the
+   single most obvious way a daily stop gets walked around. What IS per-account
+   is the ceiling, the hard max and the risk budget, and those read A. */
+function tradeCap(d,prior,conf,stopPts,ins,mins,A){
+  A=A||CFG;
+  const frac=A.CONF_FRACTION[conf];
   if(!(frac>0)) return 0;
 
   const POS=positionsOf(prior);
@@ -882,19 +1065,19 @@ function tradeCap(d,prior,conf,stopPts,ins,mins){
     if(conf!=='6/6')        return 0;   // out of it, but the rule is 6/6 only
   }
 
-  let cap=Math.floor(ratchetedCeiling(d,prior)*frac);
+  let cap=Math.floor(ratchetedCeiling(d,prior,A)*frac);
   if(cap<1) cap=1;
 
-  if(lo!==null)       cap=CFG.BASE_CONTRACTS;   // returning from lockout: base size
+  if(lo!==null)       cap=A.BASE_CONTRACTS;   // returning from lockout: base size
   else if(streak===2) cap=1;
   else if(streak===1) cap=Math.max(1,Math.floor(cap/2));
 
   const prev=POS[POS.length-1];
   if(prev&&prev.res==='LOSS') cap=Math.min(cap,prev.qty);
 
-  cap=Math.min(cap,CFG.MAX_CONTRACTS,ratchetedCeiling(d,prior));
+  cap=Math.min(cap,A.MAX_CONTRACTS,ratchetedCeiling(d,prior,A));
 
-  const rc=riskCapFor(stopPts,ins);
+  const rc=riskCapFor(stopPts,ins,A);
   if(rc!==null) cap=Math.min(cap,rc);
 
   return Math.max(0,cap);
@@ -930,8 +1113,12 @@ function concurrency(d){
 function analyze(t,prior,d,openBefore){
   const w=windowAt(t.mins), f=[];
   const esg=(d.esg||[]).filter(Boolean).length;
-  const ceil=ratchetedCeiling(d,prior);
-  const cap=tradeCap(d,prior,t.conf,t.stopPts,t.ins,t.mins);
+  /* [v5.0.0] The rules that judge this trade are the rules of the account this
+     trade was taken on — not the account currently on screen. This single line
+     is what makes a day that spans two accounts score correctly. */
+  const A=A_of(t,d);
+  const ceil=ratchetedCeiling(d,prior,A);
+  const cap=tradeCap(d,prior,t.conf,t.stopPts,t.ins,t.mins,A);
 
   /* [v4.8.2] A position that scaled out in four pieces made ONE judgment about
      window, confluence, location, setup, trigger, size and risk. Repeating those
@@ -964,7 +1151,11 @@ function analyze(t,prior,d,openBefore){
   if(!t.conf) f.push('PANEL P NOT RECORDED');
   else if(cap===0) f.push('SIZE CAP 0 — NO TRADE PERMITTED');
   else if(gqty>cap) f.push('OVER SIZE CAP — max '+cap+', took '+gqty);
-  if(gqty>CFG.MAX_CONTRACTS) f.push('OVER HARD MAX '+CFG.MAX_CONTRACTS);
+  if(gqty>A.MAX_CONTRACTS) f.push('OVER THE FIRM MAX OF '+A.MAX_CONTRACTS+' ON '+A.LABEL);
+  /* An account whose preset has never been checked against the firm's own
+     dashboard is scoring every number above off an assumption. Say so on the
+     trade rather than only in a settings screen nobody reopens. */
+  if(!A.VERIFIED) f.push('ACCOUNT UNVERIFIED — '+A.LABEL+' preset has not been confirmed against the dashboard');
   if(openBefore>0) f.push('PYRAMID — '+openBefore+' already open');
   if(openBefore+gqty>ceil&&ceil>0) f.push('PEAK '+(openBefore+gqty)+' OVER CEILING '+ceil);
 
@@ -988,8 +1179,8 @@ function analyze(t,prior,d,openBefore){
      $91.50 describes two things that never happened. */
   const stop=+t.stopPts||0;
   const risk=stop*pv(t.ins)*gqty;
-  const riskPct=CFG.DAILY_LOSS_LIMIT?risk/CFG.DAILY_LOSS_LIMIT*100:0;
-  const rc=riskCapFor(stop,t.ins);
+  const riskPct=A.DAILY_LOSS_LIMIT?risk/A.DAILY_LOSS_LIMIT*100:0;
+  const rc=riskCapFor(stop,t.ins,A);
   /* [v4.7] Two opposite facts that v4.6 collapsed into one soft flag.
      "I forgot to type the stop in" is missing paperwork. "There was no stop in
      the market" is unbounded risk on a live position, and on 2 Oct that was
@@ -1001,11 +1192,11 @@ function analyze(t,prior,d,openBefore){
      the self-imposed day stop. State both: the % of the session budget tells you
      the trade is oversized, the % of the buffer tells you what it costs if the
      whole thing goes wrong. */
-  else if(riskPct>CFG.RISK_BUDGET_PCT) f.push('RISK '+Math.round(riskPct)+'% OF DAY STOP — budget is '
-      +CFG.RISK_BUDGET_PCT+'%, that stop affords '+rc
-      +' — $'+risk.toFixed(2)+' is '+(risk/CFG.DRAWDOWN_BUFFER*100).toFixed(1)+'% OF THE $'
-      +CFG.DRAWDOWN_BUFFER+' BUFFER');
-  if(d.panelF==='CONTRACTING'&&stop>CFG.STOP_CAP_TICKS*CFG.TICK_SIZE) f.push('STOP OVER '+CFG.STOP_CAP_TICKS+'-TICK CAP');
+  else if(riskPct>A.RISK_BUDGET_PCT) f.push('RISK '+Math.round(riskPct)+'% OF DAY STOP — budget is '
+      +A.RISK_BUDGET_PCT+'%, that stop affords '+rc
+      +' — $'+risk.toFixed(2)+' is '+(risk/A.DRAWDOWN_BUFFER*100).toFixed(1)+'% OF THE $'
+      +A.DRAWDOWN_BUFFER+' BUFFER ON '+A.LABEL);
+  if(d.panelF==='CONTRACTING'&&stop>A.STOP_CAP_TICKS*A.TICK_SIZE) f.push('STOP OVER '+A.STOP_CAP_TICKS+'-TICK CAP');
   }
 
   // ── EXIT DATA
@@ -1037,7 +1228,7 @@ function analyze(t,prior,d,openBefore){
      to 100% and printed a confident, impossible number. Now it refuses to
      compute and raises a flag — the best detector there is of an excursion
      typed in the wrong unit. */
-  const mfeBad  = mfe>0 && ptsGained > mfe + CFG.TICK_SIZE;
+  const mfeBad  = mfe>0 && ptsGained > mfe + A.TICK_SIZE;
   const capture = (mfe>0&&ptsGained>0&&!mfeBad) ? Math.min(1,ptsGained/mfe) : null;
 
   /* [v4.7] The trade's best moment never reached the distance being risked, so
@@ -1058,8 +1249,8 @@ function analyze(t,prior,d,openBefore){
   const tp=+t.tp||0;
   if(firstP&&tp>0&&stop>0){
     const rr=tp/stop;
-    if(rr<CFG.MIN_RR)
-      f.push('R:R '+rr.toFixed(2)+' BELOW THE '+CFG.MIN_RR+' FLOOR — needs '
+    if(rr<A.MIN_RR)
+      f.push('R:R '+rr.toFixed(2)+' BELOW THE '+A.MIN_RR+' FLOOR — needs '
              +Math.round(stop/(stop+tp)*100)+'% wins just to break even');
   } else if(firstP&&!tp && t.tact!=='NO TARGET') f.push('TARGET NOT RECORDED');
   if(firstP&&t.tact==='NO TARGET') f.push('NO TARGET SET — the exit had nothing to aim at');
@@ -1077,7 +1268,7 @@ function analyze(t,prior,d,openBefore){
   /* Heat deeper than the stop, on a trade that did not stop out, means the
      stop was widened or moved — or a number is wrong. Either way it is the
      one rule break a journal otherwise cannot see. */
-  if(firstP&&stop>0&&mae>stop+CFG.TICK_SIZE&&t.exit!=='Initial stop hit')
+  if(firstP&&stop>0&&mae>stop+A.TICK_SIZE&&t.exit!=='Initial stop hit')
     f.push('MAE '+mae+' EXCEEDS THE '+stop+'-PT STOP — the stop was moved, or a number is wrong');
 
   /* ── STREAK / LOCKOUT ─────────────────────────────────────────────────────
@@ -1090,9 +1281,9 @@ function analyze(t,prior,d,openBefore){
   let streak=0; for(let i=POS.length-1;i>=0;i--){ if(POS[i].res==='LOSS') streak++; else break; }
   const lo=lockoutEnd(prior);
   if(lo!==null&&first){
-    if(t.mins<lo) f.push('TRADED INSIDE THE '+CFG.LOCKOUT_MINUTES+'-MIN LOCKOUT — it cleared at '+fmtMins(lo));
+    if(t.mins<lo) f.push('TRADED INSIDE THE '+A.LOCKOUT_MINUTES+'-MIN LOCKOUT — it cleared at '+fmtMins(lo));
     else if(t.conf&&t.conf!=='6/6') f.push('POST-LOCKOUT — 6/6 ONLY, took '+t.conf);
-    else if(gq>CFG.BASE_CONTRACTS) f.push('POST-LOCKOUT — BASE SIZE ONLY, took '+gq);
+    else if(gq>A.BASE_CONTRACTS) f.push('POST-LOCKOUT — BASE SIZE ONLY, took '+gq);
   }
   const L=POS.filter(x=>x.res==='LOSS');
   if(first&&L.length>=2){ const a=L[L.length-1],b=L[L.length-2]; if(a.mins-b.mins<=10&&t.mins-a.mins<10) f.push('SPEED LOCKOUT'); }
@@ -1104,14 +1295,22 @@ function analyze(t,prior,d,openBefore){
   if(first&&!POS.length){
     const ci=carryInStreak(d.date);
     if(ci>=2) f.push('CARRY-IN STREAK '+ci+' — that run cost $'
-      +(ci*CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100).toFixed(0)
-      +' at budget, '+(ci*CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100/CFG.DRAWDOWN_BUFFER*100).toFixed(1)
+      +(ci*budgetOf(A)).toFixed(0)
+      +' at budget, '+(ci*budgetOf(A)/A.DRAWDOWN_BUFFER*100).toFixed(1)
       +'% of the buffer. The lockout reset overnight; the run did not');
   }
 
-  // ── DAY LIMITS
-  if(first&&POS.length>=CFG.MAX_TRADES) f.push('OVER '+CFG.MAX_TRADES+' TRADES');
-  if(prior.reduce((s,x)=>s+netOf(x),0)<=-CFG.DAILY_LOSS_LIMIT) f.push('PAST DAILY LOSS LIMIT');
+  /* ── DAY LIMITS ────────────────────────────────────────────────────────────
+     The trade count is person-level: thirty entries is thirty decisions however
+     many accounts they were spread across. The LOSS limit is per account,
+     because each account has its own buffer and 10% of $4,000 is not 10% of
+     $2,000 — one flat figure across accounts would be the sloppier rule.
+     The aggregate across every account is shown on the SESSION rails, where it
+     is information rather than a gate. */
+  if(first&&POS.length>=A.MAX_TRADES) f.push('OVER '+A.MAX_TRADES+' TRADES');
+  const sameAcct=prior.filter(x=>acctIdOf(x,d)===A.ID);
+  if(sameAcct.reduce((s,x)=>s+netOf(x),0)<=-A.DAILY_LOSS_LIMIT)
+    f.push('PAST THE $'+A.DAILY_LOSS_LIMIT+' SESSION STOP ON '+A.LABEL);
 
   if(t.override) f.push('LOGGED OVER AN ACTIVE VETO');
 
@@ -1185,9 +1384,16 @@ function isFirstParcel(d,t){
    Without entry prices (hand-typed rows) it falls back to each lot's own stop
    distance, which can only overstate. Erring high is the right direction for a
    risk number. */
-function peakOpenRisk(d){
-  const T=(d.trades||[]).slice().sort((a,b)=>a.mins-b.mins);
-  if(!T.length) return {peak:0,atMins:null,lots:0,exact:true};
+/* [v5.0.0] With no acctId this is the AGGREGATE — every lot live at that moment
+   across every account, which is the real money exposed and the number the
+   SESSION rail shows. With an acctId it is that account's own peak, which is
+   what gets measured against that account's buffer and session stop. Both
+   readings are needed: three accounts each inside their own 10% is still 30% of
+   a day gone, and only the aggregate says so. */
+function peakOpenRisk(d,acctId){
+  let T=(d.trades||[]).slice().sort((a,b)=>a.mins-b.mins);
+  if(acctId) T=T.filter(x=>acctIdOf(x,d)===acctId);
+  if(!T.length) return {peak:0,atMins:null,lots:0,exact:true,byIndex:{}};
   const ev=[];
   T.forEach((t,i)=>{
     const out=(t.outMins!=null&&t.outMins>=t.mins)?t.outMins:t.mins;
@@ -1262,10 +1468,22 @@ function recompute(d){
   });
   Object.keys(worst).forEach(g=>{
     const i=worst[g], t=d.trades[i], r=+BI[i]||0;
-    if(r>CFG.DAILY_LOSS_LIMIT)
+    const A=A_of(t,d);
+    if(r>A.DAILY_LOSS_LIMIT)
       (t.flags=t.flags||[]).push('OPEN RISK $'+r.toFixed(2)+' AFTER THIS ENTRY — past the $'
-        +CFG.DAILY_LOSS_LIMIT+' day stop, '+(r/CFG.DRAWDOWN_BUFFER*100).toFixed(1)+'% of the buffer');
+        +A.DAILY_LOSS_LIMIT+' session stop on '+A.LABEL+', '
+        +(r/A.DRAWDOWN_BUFFER*100).toFixed(1)+'% of its buffer');
   });
+  /* Per-account rollups for the day: net, peak open risk, and the best day so
+     far on that account — the figure the consistency rule actually keys off. */
+  d.byAcct={};
+  (d.trades||[]).forEach(t=>{
+    const id=acctIdOf(t,d);
+    if(!d.byAcct[id]) d.byAcct[id]={id:id,n:0,gross:0,fees:0,net:0,qty:0,peakRisk:0};
+    const b=d.byAcct[id];
+    b.n++; b.gross+=(+t.pnl||0); b.fees+=feeFor(t); b.net=b.gross-b.fees; b.qty+=(+t.qty||0);
+  });
+  Object.keys(d.byAcct).forEach(id=>{ d.byAcct[id].peakRisk=peakOpenRisk(d,id).peak; });
   d.hardViol=d.trades.reduce((s,t)=>s+hardCount(t),0);
   d.softViol=d.trades.reduce((s,t)=>s+softCount(t),0);
   d.passes=(d.passes||[]).sort((a,b)=>a.mins-b.mins);
@@ -1276,13 +1494,25 @@ function recompute(d){
    ═══════════════════════════════════════════════════════════════════════════ */
 let HARD_VETO=false;
 
+/* The account the trade being typed will land on. The form's own selector wins;
+   the day's default fills it. Everything the preflight says — the ceiling, the
+   budget, the cap — is that account's answer, so switching the dropdown
+   recalculates the whole bar before a single field is filled in. */
+function formAcctId(){
+  const el=document.getElementById('t-acct');
+  const v=el&&el.value;
+  return (v&&DB.accounts[v])?v:(day().acct||DB.currentAcct||DEFAULT_ACCT);
+}
+function formAcct(){ return resolveAcct(formAcctId()); }
+
 function liveCap(){
   const d=day();
   return tradeCap(d,d.trades.slice(),
     document.getElementById('t-conf').value,
     +document.getElementById('t-stop').value||0,
     document.getElementById('t-ins').value,
-    (VIEW===etDate()?etMins():parseMins(document.getElementById('t-time').value)));
+    (VIEW===etDate()?etMins():parseMins(document.getElementById('t-time').value)),
+    formAcct());
 }
 
 /* [v4.5] Options above the cap are LABELLED, never disabled.
@@ -1294,9 +1524,13 @@ function paintQty(){
   const sel=document.getElementById('t-qty');
   const cap=liveCap();
   const cur=Math.max(1,+sel.value||1);
-  // Go at least as high as whatever is already selected, so an imported 12-lot
-  // can still be displayed even though the ceiling is 10.
-  const top=Math.max(CFG.MAX_CONTRACTS,cur);
+  /* Go at least as high as whatever is already selected, so an imported 12-lot
+     can still be displayed even though the ceiling is lower.
+     [v5.0.0] The list is sized off the LADDER, not the firm's cap: a Topstep
+     150K permits 150 micros, and a 150-row dropdown is not a control, it is a
+     hazard. The firm's real maximum is still enforced in the flags. */
+  const A=formAcct();
+  const top=Math.min(60,Math.max(A.CEILING.EXPANDING_3+4,10,cur));
   // A new trade defaults to the cap as guidance. An edit keeps what was stored.
   const want=(EDIT_IX>=0)?cur:Math.min(cur,Math.max(cap,1));
   /* At a cap of 0 every size is over the cap, so "over cap of 0" on all ten
@@ -1399,13 +1633,17 @@ function preflight(){
   const live=(VIEW===etDate());
   const t=live?etMins():600, w=windowAt(t);
   const esg=(d.esg||[]).filter(Boolean).length;
-  const net=d.trades.reduce((s,x)=>s+(+x.pnl||0),0);
+  const A=formAcct();
+  /* The session stop is this ACCOUNT's, so only this account's trades count
+     toward it. The aggregate across every account is on the NET THIS DAY rail,
+     where it is information rather than a gate. */
+  const net=d.trades.filter(x=>acctIdOf(x,d)===A.ID).reduce((s,x)=>s+netOf(x),0);
   let streak=0; for(let i=d.trades.length-1;i>=0;i--){ if(d.trades[i].res==='LOSS') streak++; else break; }
   const cap=paintQty();
-  const ceil=ratchetedCeiling(d,d.trades.slice());
+  const ceil=ratchetedCeiling(d,d.trades.slice(),A);
   const ratcheted=d.trades.some(x=>hardCount(x)>0);
   const stopPts=+document.getElementById('t-stop').value||0;
-  const rc=riskCapFor(stopPts,document.getElementById('t-ins').value);
+  const rc=riskCapFor(stopPts,document.getElementById('t-ins').value,A);
 
   if(!live){
     el.innerHTML='<div class="pf warn">Editing '+VIEW+' — a past day. Live vetoes are off; violations are still scored on save.</div>';
@@ -1414,43 +1652,74 @@ function preflight(){
   }
 
   const v=[],wn=[];
+  /* [v5.0.0] You said you were finished. Nothing here can stop an order, but the
+     journal will not quietly pretend the decision was never made. */
+  if(d.done) v.push('YOU CALLED THE DAY DONE — on every account. Nothing after this was part of the plan.');
   if(d.panelF==='PRICE_LIE') v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
   if(!w.ok) v.push(w.n+' — no entries in this window');
   const lk=lockState();
   if(lk&&lk.active){
     const m=Math.floor(lk.secs/60), ss=lk.secs%60;
     v.push('3-LOSS LOCKOUT — '+m+' min '+String(ss).padStart(2,'0')+' sec remaining, clears at '+fmtMins(lk.end)
-           +'. After that: 6/6 and '+CFG.BASE_CONTRACTS+' contract only.');
+           +'. After that: 6/6 and '+A.BASE_CONTRACTS+' contract only. It follows YOU, not the account — switching does not clear it.');
   }else if(lk){
-    wn.push('Lockout cleared at '+fmtMins(lk.end)+' — 6/6 and '+CFG.BASE_CONTRACTS+' contract only until you get a win');
+    wn.push('Lockout cleared at '+fmtMins(lk.end)+' — 6/6 and '+A.BASE_CONTRACTS+' contract only until you get a win');
   }
-  if(net<=-CFG.DAILY_LOSS_LIMIT) v.push('Daily loss limit reached — done for the day');
-  if(d.trades.length>=CFG.MAX_TRADES) v.push(CFG.MAX_TRADES+'-trade cap reached');
+  if(net<=-A.DAILY_LOSS_LIMIT) v.push('Session stop of $'+A.DAILY_LOSS_LIMIT+' reached on '+A.LABEL+' — done on this account');
+  if(d.trades.length>=A.MAX_TRADES) v.push(A.MAX_TRADES+'-trade cap reached');
   if(cap===0&&!v.length) v.push('Size cap is 0 at this Panel P score — no trade permitted');
 
-  if(!d.panelF) wn.push('Panel F not locked — ceiling held at '+CFG.CEILING.NO_PANEL_F+' until you set it');
+  if(!A.VERIFIED) wn.push(A.LABEL+' is UNVERIFIED — every number below is a catalog preset, not something you have checked against the dashboard');
+  if(A.PNOTE) wn.push(A.LABEL+': '+A.PNOTE);
+  if(!d.panelF) wn.push('Panel F not locked — ceiling held at '+A.CEILING.NO_PANEL_F+' until you set it');
   if(esg<2) wn.push('Emotional state '+esg+'/3 — restricted: 6/6 and 1 contract only');
-  if(d.panelF==='CONTRACTING') wn.push('Contracting — 5/6 minimum, stop capped at '+CFG.STOP_CAP_TICKS+' ticks');
-  if(ratcheted) wn.push('A violation is already logged today — ceiling has ratcheted down to '+CFG.BASE_CONTRACTS);
+  if(d.panelF==='CONTRACTING') wn.push('Contracting — 5/6 minimum, stop capped at '+A.STOP_CAP_TICKS+' ticks');
+  if(ratcheted) wn.push('A violation is already logged today — ceiling has ratcheted down to '+A.BASE_CONTRACTS);
   if(streak===2) wn.push('Two losses in a row — next entry is 1 contract, and a third triggers the lockout');
+  /* The aggregate. Three accounts each inside their own 10% is still 30% of a
+     day gone, and no single account's screen will ever say so. */
+  { const agg=dayNet(d);
+    const lim=Object.keys(d.byAcct||{}).reduce((s,id)=>s+resolveAcct(id).DAILY_LOSS_LIMIT,0)||A.DAILY_LOSS_LIMIT;
+    if(agg<0&&Math.abs(agg)>=lim*0.75)
+      wn.push('Across every account you are '+money(agg)+' on the day against '+money(lim)+' of combined session stop');
+  }
 
   HARD_VETO=v.length>0;
 
   if(v.length) el.innerHTML='<div class="pf veto"><b>VETO ACTIVE</b><br>'+v.map(x=>'· '+x).join('<br>')+'</div>';
   else if(wn.length) el.innerHTML='<div class="pf warn">'+wn.map(x=>'· '+x).join('<br>')+'</div>';
-  else el.innerHTML='<div class="pf ok">'+w.n+' open · Panel F '+d.panelF+' · emotional state 3/3 · no active vetoes</div>';
+  else el.innerHTML='<div class="pf ok">'+w.n+' open · '+A.LABEL+' · Panel F '+d.panelF+' · emotional state 3/3 · no active vetoes</div>';
 
   const why=[];
+  why.push(A.LABEL);
   why.push('ceiling '+ceil);
   why.push(document.getElementById('t-conf').value);
   why.push(rc===null?'no stop set — risk cap not applied'
-                    :('stop '+stopPts+'pt affords '+rc+' at '+CFG.RISK_BUDGET_PCT+'% budget'));
+                    :('stop '+stopPts+'pt affords '+rc+' at $'+budgetOf(A).toFixed(0)+' budget'));
   if(ratcheted) why.push('ratcheted — hard violation logged');
   if(streak) why.push(streak+' loss'+(streak>1?'es':'')+' in a row');
   sb.innerHTML='<div class="sizebar'+(cap===0?' blocked':'')+'"><span>MAX CONTRACTS RIGHT NOW</span><b>'+cap+'</b>'
     +'<span class="why">'+why.join(' · ')+'</span></div>';
 
+  paintAcctInfo(A);
   paintButtons();
+}
+
+/* The account's rules, beside the selector that chose it. Switching the
+   dropdown changes every number on this line before a single field is typed. */
+function paintAcctInfo(A){
+  const el=document.getElementById('t-acctinfo'); if(!el) return;
+  A=A||formAcct();
+  const bits=[money(A.DRAWDOWN_BUFFER)+' buffer',
+              'stop '+money(A.DAILY_LOSS_LIMIT),
+              money(budgetOf(A))+'/trade',
+              'ceil '+A.CEILING.EXPANDING_3,
+              'firm max '+A.MAX_CONTRACTS];
+  if(A.FIRM_DLL) bits.push('firm DLL '+money(A.FIRM_DLL));
+  if(A.XFA)      bits.push('XFA — buffer tracks balance');
+  el.textContent=bits.join(' · ');
+  el.style.color=A.VERIFIED?'var(--gy)':'var(--o1)';
+  el.title=A.VERIFIED?'':'UNVERIFIED — confirm against the firm dashboard';
 }
 
 function paintButtons(){
@@ -1472,7 +1741,7 @@ function paintButtons(){
 
 /* ---------- RENDER ---------- */
 function go(p){
-  ['session','log','stats','rules','data'].forEach(x=>{
+  ['session','log','stats','rules','accts','data'].forEach(x=>{
     document.getElementById('p-'+x).classList.toggle('on',x===p);
     document.getElementById('tb-'+x).classList.toggle('on',x===p);
   });
@@ -1490,14 +1759,26 @@ function render(){
 
   document.getElementById('f-panelf').value=d.panelF||'';
   document.getElementById('f-vix').value=d.vix||'';
-  document.getElementById('f-acct').value=d.acct||'';
-  const accts=Array.from(new Set(Object.keys(DB.days).map(k=>DB.days[k].acct).filter(Boolean))).sort();
-  document.getElementById('acctlist').innerHTML=accts.map(a=>'<option value="'+a.replace(/"/g,'&quot;')+'"></option>').join('');
+  /* [v5.0.0] Two account selectors, and they do different jobs. f-acct is the
+     DAY's default — what a new trade starts on. t-acct is what THIS trade is
+     actually on, and it is the one that decides the ceiling and the budget. */
+  const opts=acctIds().map(id=>{
+    const a=DB.accounts[id];
+    return '<option value="'+id+'">'+String(a.label||id).replace(/</g,'&lt;')
+      +(a.verified?'':' · UNVERIFIED')+'</option>';
+  }).join('');
+  const fa=document.getElementById('f-acct'), ta=document.getElementById('t-acct');
+  if(fa){ fa.innerHTML=opts; fa.value=d.acct||DB.currentAcct||DEFAULT_ACCT; }
+  if(ta){ const keep=ta.value; ta.innerHTML=opts;
+          ta.value=(keep&&DB.accounts[keep])?keep:(d.acct||DB.currentAcct||DEFAULT_ACCT); }
   { const gl=document.getElementById('grplist');
     if(gl){ const tags=Array.from(new Set((d.trades||[]).map(x=>x.grp).filter(Boolean)));
       gl.innerHTML=tags.map(a=>'<option value="'+String(a).replace(/"/g,'&quot;')+'"></option>').join(''); } }
   const ac=document.getElementById('c-acct');
-  if(d.acct){ ac.style.display=''; ac.textContent='ACCT '+d.acct; } else { ac.style.display='none'; }
+  { const nA=Object.keys(d.byAcct||{}).length;
+    ac.style.display='';
+    ac.textContent=nA>1?('ACCTS '+nA+' TODAY'):('ACCT '+acctLabel(d.acct));
+    ac.title=Object.keys(d.byAcct||{}).map(id=>acctLabel(id)+' '+money(d.byAcct[id].net)).join(' · '); }
   document.getElementById('dd-grade').value=d.grade||'';
   document.getElementById('dd-fix').value=d.fix||'';
   document.getElementById('dd-note').value=d.note||'';
@@ -1506,14 +1787,16 @@ function render(){
   const esg=d.esg.filter(Boolean).length;
   document.getElementById('esg-note').textContent=esg>=2?'Score '+esg+'/3. Normal permissions.':'Score '+esg+'/3. Restricted day: 6/6 confluence only, 1 contract, no exceptions.';
 
-  const ceil=ceilingFor(d);
-  const rc=ratchetedCeiling(d,d.trades.slice());
+  const DA=resolveAcct(d.acct||DB.currentAcct||DEFAULT_ACCT);
+  const ceil=ceilingFor(d,DA);
+  const rc=ratchetedCeiling(d,d.trades.slice(),DA);
   document.getElementById('ceil-note').textContent=
-    'Day ceiling '+rc+' contract'+(rc===1?'':'s')+' — '+ceilingReason(d,d.trades.slice())
+    'Day ceiling '+rc+' contract'+(rc===1?'':'s')+' on '+DA.LABEL+' — '+ceilingReason(d,d.trades.slice(),DA)
     +'. It can only go down from here; nothing in the session raises it.'
-    +' The stop still decides the final size — whichever is smaller wins.';
+    +' The stop still decides the final size — whichever is smaller wins.'
+    +(acctIds().length>1?' A different account has its own ceiling — switch it on the trade.':'');
   const cc=document.getElementById('c-ceil');
-  cc.textContent='CEIL '+ratchetedCeiling(d,d.trades.slice());
+  cc.textContent='CEIL '+rc;
   cc.className='chip ceil'+(ceil===0?' zero':'');
 
   const gross=dayGross(d), fees=dayFees(d), net=gross-fees;
@@ -1523,12 +1806,26 @@ function render(){
   const viol=d.hardViol||0, soft=d.softViol||0;
   const peak=d.peakPos||0;
 
+  /* [v5.0.0] NET THIS DAY is the AGGREGATE across every account touched \u2014 the
+     figure your household feels, and the one no firm dashboard will ever show
+     you. The split underneath is per account, because that is what each
+     session stop is measured against. */
   document.getElementById('v-pnl').textContent=money(net);
   { const sub=document.getElementById('v-pnl-sub');
-    if(sub) sub.textContent = fees>0 ? ('gross '+money(gross)+' \u2212 '+money(fees)+' fees') : ''; }
-  document.getElementById('r-pnl').className='rail '+(net<=-CFG.DAILY_LOSS_LIMIT?'bad':net<0?'warn':net>0?'good':'');
+    const ids=Object.keys(d.byAcct||{});
+    if(sub){
+      if(ids.length>1) sub.textContent=ids.map(id=>acctLabel(id)+' '+money(d.byAcct[id].net)).join(' \u00b7 ');
+      else sub.textContent = fees>0 ? ('gross '+money(gross)+' \u2212 '+money(fees)+' fees') : '';
+    } }
+  { /* Red when ANY account has blown through its own stop, or the combined
+       total has blown through the combined stop. */
+    const ids=Object.keys(d.byAcct||{});
+    const anyOver=ids.some(id=>d.byAcct[id].net<=-resolveAcct(id).DAILY_LOSS_LIMIT);
+    const combined=ids.reduce((s,id)=>s+resolveAcct(id).DAILY_LOSS_LIMIT,0)||DA.DAILY_LOSS_LIMIT;
+    document.getElementById('r-pnl').className='rail '+
+      ((anyOver||net<=-combined)?'bad':net<0?'warn':net>0?'good':''); }
   document.getElementById('v-trades').textContent=d.trades.length;
-  document.getElementById('r-trades').className='rail '+(d.trades.length>=CFG.MAX_TRADES?'bad':d.trades.length>=20?'warn':'');
+  document.getElementById('r-trades').className='rail '+(d.trades.length>=RULES.MAX_TRADES?'bad':d.trades.length>=20?'warn':'');
   paintLock();
   { const ci=carryInStreak(VIEW);
     document.getElementById('v-streak').textContent=streak;
@@ -1537,13 +1834,19 @@ function render(){
     document.getElementById('r-streak').className='rail '+
       ((streak+ci)>=3?'bad':(streak+ci)===2?'warn':''); }
   { const OR=d.openRisk||peakOpenRisk(d);
+    const ids=Object.keys(d.byAcct||{});
+    /* Aggregate exposure against the combined buffer. Two accounts live at once
+       is twice the money on risk, and only this reading says so. */
+    const buf=ids.length?ids.reduce((s,id)=>s+resolveAcct(id).DRAWDOWN_BUFFER,0):DA.DRAWDOWN_BUFFER;
+    const lim=ids.length?ids.reduce((s,id)=>s+resolveAcct(id).DAILY_LOSS_LIMIT,0):DA.DAILY_LOSS_LIMIT;
     document.getElementById('v-orisk').textContent=money(OR.peak);
     document.getElementById('v-orisk-sub').textContent = OR.peak>0
       ? (OR.lots+' lots at '+fmtMins(OR.atMins)+' \u00b7 '
-         +(OR.peak/CFG.DRAWDOWN_BUFFER*100).toFixed(1)+'% of buffer'+(OR.exact?'':' (est)'))
+         +(OR.peak/buf*100).toFixed(1)+'% of buffer'+(OR.exact?'':' (est)')
+         +(ids.length>1?' \u00b7 across '+ids.length+' accounts':''))
       : '';
     document.getElementById('r-orisk').className='rail '+
-      (OR.peak>CFG.DAILY_LOSS_LIMIT?'bad':OR.peak>CFG.DAILY_LOSS_LIMIT*0.5?'warn':''); }
+      (OR.peak>lim?'bad':OR.peak>lim*0.5?'warn':''); }
   document.getElementById('v-peak').textContent=peak;
   document.getElementById('r-peak').className='rail '+(peak>ceil?'bad':peak===ceil&&ceil>0?'warn':'');
   document.getElementById('v-viol').textContent=viol;
@@ -1600,15 +1903,29 @@ function render(){
     viol>0?viol+' violation'+(viol>1?'s':'')+' logged — a C or D unless you can defend it'
           :(soft>0?'No violations · '+soft+' field'+(soft>1?'s':'')+' left blank':'No violations logged');
 
-  document.getElementById('lad-max').textContent=CFG.CEILING.EXPANDING_3;
-  document.getElementById('lad-riskpct').textContent=CFG.RISK_BUDGET_PCT;
-  const budget=CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100;
+  /* [v5.0.0] The ladder is drawn for the DAY's account. Every figure on the tab
+     moves when that selector moves, because the ladder is a property of the
+     buffer behind it and not of the system. */
+  document.getElementById('lad-acct').textContent=DA.LABEL+' · buffer '+money(DA.DRAWDOWN_BUFFER)
+    +' · locked 9:45 · ratchets down only'+(DA.VERIFIED?'':' · UNVERIFIED');
+  document.getElementById('lad-c2').textContent=DA.CEILING.CONTRACTING_2;
+  document.getElementById('lad-c3').textContent=DA.CEILING.CONTRACTING_3;
+  document.getElementById('lad-e2').textContent=DA.CEILING.EXPANDING_2;
+  document.getElementById('lad-max').textContent=DA.CEILING.EXPANDING_3;
+  document.getElementById('lad-riskpct').textContent=DA.RISK_BUDGET_PCT;
+  const budget=budgetOf(DA);
   document.getElementById('lad-budget').textContent=money(budget);
   document.getElementById('lad-rows').innerHTML=[5,7.5,10,12.5,15,20,25,30,43.75].map(s=>{
-    const per=s*pv('MNQ'), n=Math.min(CFG.MAX_CONTRACTS,Math.floor(budget/per));
+    const per=s*pv('MNQ'), n=Math.min(DA.MAX_CONTRACTS,Math.floor(budget/per));
     return '<tr><td>'+s+' pts</td><td>'+money(per)+'</td><td>'+n+'</td></tr>';
   }).join('');
 
+  { const db=document.getElementById('donebtn');
+    if(db){ db.textContent=d.done?'DAY CALLED DONE — '+(d.doneAt||'')
+                                 :'I AM DONE FOR THE DAY — STOP HERE';
+            db.disabled=!!d.done; } }
+
+  renderAccounts();
   renderLog(); renderStats();
   document.getElementById('bk-when').textContent=DB.lastBackup?('last backup '+DB.lastBackup):'never backed up';
   const cb=document.getElementById('c-backup');
@@ -1770,10 +2087,14 @@ function renderStats(){
   /* ── [v4.9] streak history + expectancy ──────────────────────────────── */
   const SH=streakHistory();
   document.getElementById('s-mls').textContent=SH.maxLoss;
-  { const budget=CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100;
+  /* [v5.0.0] Streaks are person-level and span accounts, so what a run COSTS
+     has no single answer. Price it on the current account and say which one \u2014
+     an unlabelled dollar figure across a mixed registry is a number nobody can
+     check. */
+  { const budget=budgetOf(CFG);
     const cost=SH.maxLoss*budget;
     document.getElementById('s-mls-sub').textContent=SH.maxLoss
-      ? ('$'+cost.toFixed(0)+' at budget \u00b7 '+(cost/CFG.DRAWDOWN_BUFFER*100).toFixed(0)+'% of buffer'
+      ? ('$'+cost.toFixed(0)+' at '+CFG.LABEL+' budget \u00b7 '+(cost/CFG.DRAWDOWN_BUFFER*100).toFixed(0)+'% of its buffer'
          +' \u00b7 best run '+SH.maxWin)
       : 'no losing position yet';
     document.getElementById('s-mls-r').className='rail '+
@@ -1792,7 +2113,7 @@ function renderStats(){
     h+=row('average loss', EV.avgL==null?'— no losses yet':EV.avgL.toFixed(2)+'R');
     h+=row('EXPECTANCY',   EV.ev==null?'NOT COMPUTABLE'
             :(EV.ev>=0?'+':'')+EV.ev.toFixed(3)+'R per trade  ('
-             +money(EV.ev*CFG.DAILY_LOSS_LIMIT*CFG.RISK_BUDGET_PCT/100)+' at budget)');
+             +money(EV.ev*budgetOf(CFG))+' at '+CFG.LABEL+' budget)');
     h+=row('breakeven win rate', EV.beActual!=null?(EV.beActual*100).toFixed(1)+'%'
             :(EV.beAt1R!=null?(EV.beAt1R*100).toFixed(1)+'%  (assuming a 1.00R loss)':'—'));
     evb.innerHTML=h;
@@ -1802,6 +2123,11 @@ function renderStats(){
       +'The breakeven figure assumes your average loss lands at exactly 1.00R — check that against MAE EXCEEDS THE STOP before trusting it.');
     if(EV.n<30) bits.push('Under 30 positions this is noise. It is shown so you can watch the sample fill.');
     bits.push('Positions whose day is marked EXCLUDE are left out. Trades with no stop have no R and are not counted.');
+    /* R normalises across accounts BECAUSE risk is a dollar figure and P&L is a
+       dollar figure — which is exactly what the per-account risk budget makes
+       true. Pooling raw dollars would not survive a second account; pooling R
+       does, and it is the system being measured, not the venue. */
+    if(acctIds().length>1) bits.push('Pooled across all '+acctIds().length+' accounts. R normalises them — each trade is measured against its own account’s risk — so this is the system’s edge, not one account’s. The dollar figure beside it is priced on '+CFG.LABEL+'.');
     bits.push('Expectancy says whether to play. It says nothing about surviving long enough to collect — that is the size.');
     evh.textContent=bits.join(' ');
   }
@@ -1935,8 +2261,168 @@ function renderStats(){
   bdRows('bd-fix',sortByN(gf),true);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   [v5.0.0] ACCOUNT REGISTRY
+
+   Two dropdowns and three typed fields. Everything else — buffer, firm daily
+   loss limit, contract caps, consistency rule, the whole size ladder — comes
+   from the catalog. What the catalog cannot know is on the instance: the number,
+   the date, the balance, what it cost, and your own session stop.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function firmsInCatalog(){ return Array.from(new Set(Object.keys(PRODUCTS).map(k=>k.split('|')[0]))); }
+function productsFor(f){ return Array.from(new Set(Object.keys(PRODUCTS).filter(k=>k.split('|')[0]===f).map(k=>k.split('|')[1]))); }
+function sizesFor(f,p){ return Object.keys(PRODUCTS).filter(k=>{const x=k.split('|');return x[0]===f&&x[1]===p;}).map(k=>k.split('|')[2]); }
+
+function paintCatalogSelects(){
+  const fs=document.getElementById('a-firm'); if(!fs) return;
+  if(!fs.options.length) fs.innerHTML=firmsInCatalog().map(f=>'<option>'+f+'</option>').join('');
+  const firm=fs.value||firmsInCatalog()[0];
+  const ps=document.getElementById('a-prod'), keepP=ps.value, listP=productsFor(firm);
+  ps.innerHTML=listP.map(p=>'<option>'+p+'</option>').join('');
+  if(listP.indexOf(keepP)>=0) ps.value=keepP;
+  const ss=document.getElementById('a-size'), keepS=ss.value, listS=sizesFor(firm,ps.value);
+  ss.innerHTML=listS.map(s=>'<option>'+s+'</option>').join('');
+  if(listS.indexOf(keepS)>=0) ss.value=keepS;
+  paintAcctPreview();
+}
+/* The preview answers the only question that matters before you buy: at your
+   own rule, how many contracts does this account actually let you trade? */
+function paintAcctPreview(){
+  const el=document.getElementById('a-preview'); if(!el) return;
+  const key=document.getElementById('a-firm').value+'|'+document.getElementById('a-prod').value
+           +'|'+document.getElementById('a-size').value;
+  const P=PRODUCTS[key];
+  if(!P){ el.innerHTML=''; return; }
+  const sIn=document.getElementById('a-stop').value;
+  const stop=(sIn!=='')?+sIn:Math.round(P.buffer*RULES.SESSION_STOP_PCT/100);
+  const bud=stop*RULES.RISK_BUDGET_PCT/100;
+  const micros=Math.floor(bud/(12.5*2));
+  const top=Math.max(2,Math.min(P.micros,Math.round(6*P.buffer/4000)));
+  const firmRisk=P.micros*12.5*2;
+  el.innerHTML='<div class="pf warn"><b>'+key.replace(/\|/g,' · ')+'</b><br>'
+    +'buffer '+money(P.buffer)+' · firm daily loss limit '+(P.dll?money(P.dll):'none')
+    +(P.dllOpt?' (chosen at purchase)':'')+' · firm max '+P.minis+' minis / '+P.micros+' micros<br>'
+    +'your session stop '+money(stop)+' · '+money(bud)+' per trade · that is <b>'+micros
+    +' MNQ micro'+(micros===1?'':'s')+'</b> at a 12.5-point stop · ladder tops out at '+top+'<br>'
+    +(P.consist&&P.consist[0]
+        ? ('consistency '+P.consist[0]+'% of '+(P.consist[1]==='target'?'the profit target — it raises the target rather than failing you':'total profit — one outsized day raises the payout bar'))
+        : '<b>no consistency rule at all</b>')
+    +'<br>the firm would let you risk '+money(firmRisk)+' on one trade at that stop — '
+    +Math.round(firmRisk/P.buffer*100)+'% of the buffer'
+    +(P.xfa?'<br>XFA: balance starts at $0 and the buffer grows with it. Contract tiers are set by balance at the START of a session and do not rise mid-day.':'')
+    +(P.note?'<br><b>'+P.note+'</b>':'')
+    +'<br><b>UNVERIFIED until you confirm every line of this against the firm’s dashboard.</b></div>';
+}
+
+function addAccount(){
+  const firm=document.getElementById('a-firm').value,
+        prod=document.getElementById('a-prod').value,
+        size=document.getElementById('a-size').value;
+  const P=PRODUCTS[firm+'|'+prod+'|'+size];
+  if(!P){ alert('Pick a firm, a product and a size.'); return; }
+  const no=document.getElementById('a-no').value.trim();
+  const label=document.getElementById('a-label').value.trim()||(prod+' '+size);
+  const id=no||(firm.slice(0,3).toUpperCase()+'-'+size+'-'+String(Date.now()).slice(-5));
+  if(DB.accounts[id]){ alert('An account with that number is already in the registry.'); return; }
+  const startBal=P.xfa?0:((parseFloat(String(size).replace(/[^0-9.]/g,''))||0)*1000);
+  const balIn=document.getElementById('a-bal').value;
+  const dllSel=document.getElementById('a-dll').value;
+  const stopIn=document.getElementById('a-stop').value;
+  DB.accounts[id]={
+    label:label, firm:firm, product:prod, size:size, acctNo:no,
+    bought:document.getElementById('a-bought').value||'',
+    startBal:startBal, balance:(balIn!==''?+balIn:startBal),
+    status:'active', cost:+document.getElementById('a-cost').value||0,
+    selfStop:(stopIn!==''?+stopIn:null),
+    firmDLL:(dllSel===''?null:(dllSel==='0'?0:(+P.dll||0))),
+    verified:false
+  };
+  ['a-label','a-no','a-bal','a-cost','a-stop'].forEach(x=>document.getElementById(x).value='');
+  document.getElementById('a-dll').value='';
+  save();
+}
+/* Verification is a deliberate act, not a checkbox you drift past. The text
+   names what it is you are claiming to have done. */
+function verifyAccount(id){
+  const a=DB.accounts[id]; if(!a) return;
+  if(a.verified){ a.verified=false; save(); return; }
+  if(!confirm('Confirming '+(a.label||id)+'.\n\nYou are stating that you have opened the firm’s own dashboard and checked: the drawdown amount, whether it is end-of-day or intraday, the current floor, the daily loss limit, the max position size and the consistency rule.\n\nThe Select Flex 50K was lost partly because that check was never done.')) return;
+  a.verified=true; save();
+}
+function useAccount(id){
+  if(!DB.accounts[id]) return;
+  DB.currentAcct=id; day().acct=id; syncCFG(); recompute(day()); save();
+}
+function delAccount(id){
+  const used=Object.keys(DB.days).some(k=>(DB.days[k].trades||[]).some(t=>t.acct===id));
+  if(used){ alert('There are logged trades on this account. Removing it would leave them scoring against nothing. Set its status instead.'); return; }
+  if(!confirm('Remove '+acctLabel(id)+' from the registry?')) return;
+  delete DB.accounts[id];
+  if(DB.currentAcct===id) DB.currentAcct=Object.keys(DB.accounts)[0]||DEFAULT_ACCT;
+  save();
+}
+function setAcctField(id,f,v){
+  const a=DB.accounts[id]; if(!a) return;
+  a[f]=(v===''?null:(f==='status'?v:+v));
+  save();
+}
+
+function renderAccounts(){
+  const host=document.getElementById('acctrows'); if(!host) return;
+  const cd=document.getElementById('cat-date'); if(cd) cd.textContent=CATALOG_DATE;
+  paintCatalogSelects();
+  const ids=acctIds();
+  const unv=ids.filter(id=>!DB.accounts[id].verified).length;
+  document.getElementById('acct-n').textContent=
+    ids.length+' account'+(ids.length===1?'':'s')+(unv?' · '+unv+' UNVERIFIED':' · all verified');
+  /* Lifetime cost against profit. Not the full payout ledger — that lands in
+     5.1 — but enough to see whether these accounts are a business. */
+  const totCost=ids.reduce((s,id)=>s+(+DB.accounts[id].cost||0),0);
+  host.innerHTML=ids.map(id=>{
+    const A=resolveAcct(id);
+    const bud=budgetOf(A);
+    const mic=Math.floor(bud/25);
+    const row=(k,v)=>'<div class="bdrow thin"><span>'+k+'</span><span></span><span class="bdval">'+v+'</span></div>';
+    return '<div class="card" style="background:var(--bg3);margin-bottom:8px">'
+      +'<div class="card-h" style="margin-bottom:6px">'
+      +'<div class="card-t">'+String(A.LABEL).replace(/</g,'&lt;')
+        +(A.VERIFIED?'':' <span style="color:var(--o1)">· UNVERIFIED</span>')
+        +(id===DB.currentAcct?' <span style="color:var(--acc)">· CURRENT</span>':'')+'</div>'
+      +'<div class="card-n">'+A.FIRM+' · '+A.PRODUCT+' · '+A.SIZE+'</div></div>'
+      +row('trailing drawdown', money(A.DRAWDOWN_BUFFER)+(A.XFA?' (tracks balance)':''))
+      +row('your session stop', money(A.DAILY_LOSS_LIMIT)+' · '+RULES.SESSION_STOP_PCT+'% of buffer')
+      +row('per-trade budget', money(bud)+' · '+mic+' MNQ micro'+(mic===1?'':'s')+' at 12.5 pts')
+      +row('ceiling ladder tops at', A.CEILING.EXPANDING_3)
+      +row('firm daily loss limit', A.FIRM_DLL?money(A.FIRM_DLL):(A.DLL_OPTIONAL?'declined at purchase':'none'))
+      +row('firm max position', A.MAX_CONTRACTS+' micros')
+      +row('consistency', A.CONSISTENCY_PCT?(A.CONSISTENCY_PCT+'% of '+(A.CONSISTENCY_BASIS==='target'?'profit target':'total profit')):'none')
+      +row('balance', money(A.BALANCE)+(A.PROFIT?' · '+(A.PROFIT>0?'+':'')+money(A.PROFIT):''))
+      +row('cost', A.COST?money(A.COST):'—')
+      +(A.PNOTE?'<div class="help" style="color:var(--o1)">'+A.PNOTE+'</div>':'')
+      +'<div class="btn-row3">'
+      +'<button class="btn tiny '+(A.VERIFIED?'sec':'acc')+'" onclick="verifyAccount(\''+id+'\')">'
+        +(A.VERIFIED?'MARK UNVERIFIED':'I CHECKED THE DASHBOARD')+'</button>'
+      +'<button class="btn sec tiny" onclick="useAccount(\''+id+'\')">USE FOR TODAY</button>'
+      +'<button class="btn dgr tiny" onclick="delAccount(\''+id+'\')">REMOVE</button>'
+      +'</div></div>';
+  }).join('')
+  +(totCost?'<div class="help">Paid to the firms so far: <b>'+money(totCost)+'</b>. Withdrawals are not tracked yet — that arrives in 5.1, and the ratio of those two numbers is the only scoreboard that settles whether this is a business.</div>':'');
+}
+
 /* ---------- ACTIONS ---------- */
 function tog(i){ const d=day(); d.esg[i]=!d.esg[i]; recompute(d); save(); }
+
+/* [v5.0.0] You said you were finished. The app cannot stop an order — only the
+   platform's own settings can — so this does not pretend to. What it does is
+   fix the decision at the moment it was made, across every account, and refuse
+   to let it be quietly revised an hour later. */
+function doneForDay(){
+  const d=day();
+  if(d.done) return;
+  if(!confirm('Call the day done on every account?\n\nThis does not stop you trading — nothing here can. It records that you decided to stop, at the moment you decided it, and anything logged afterwards is marked as having come after.\n\nIt does not come off.')) return;
+  d.done=true; d.doneAt=fmtET();
+  recompute(d); save();
+}
 
 /* ---------- EDIT AN EXISTING TRADE ----------
    Imported trades arrive with the judgement fields blank. This is how they get
@@ -1950,6 +2436,8 @@ function editTrade(i){
   document.getElementById('t-time').value=fmtMins(t.mins);
   document.getElementById('t-out').value=(t.outMins!=null?fmtMins(t.outMins):'');
   document.getElementById('t-ins').value=t.ins||'MNQ';
+  { const ta=document.getElementById('t-acct');
+    if(ta) ta.value=(t.acct&&DB.accounts[t.acct])?t.acct:(d.acct||DB.currentAcct||DEFAULT_ACCT); }
   document.getElementById('t-dir').value=t.dir||'LONG';
   document.getElementById('t-conf').value=t.conf||'';
   document.getElementById('t-f2').value=t.f2||'';
@@ -1991,6 +2479,11 @@ function addTrade(override){
   const t={
     mins:mins,
     outMins:(outRaw!=null&&outRaw>=mins)?outRaw:null,
+    /* [v5.0.0] The account rides on the TRADE. This is what lets one day's log
+       span a switch, and what makes every flag above score against the right
+       buffer rather than whichever account happens to be on screen later. */
+    acct:formAcctId(),
+    afterDone:!!d.done,
     ins:document.getElementById('t-ins').value,
     dir:document.getElementById('t-dir').value,
     qty:Math.max(1,+document.getElementById('t-qty').value||1),   // [v4.5] record what was taken; the engine flags it
@@ -2081,7 +2574,11 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   /* [v4.7] */ 'position','parcels_in_position','position_contracts','tp_pts','planned_rr','target_action',
   'no_stop_in_market','commission_usd','pnl_net',
   /* [v4.8] */ 'open_risk_after','day_peak_open_risk',
-  /* [v4.9] */ 'carry_in_streak','excluded_from_stats']);
+  /* [v4.9] */ 'carry_in_streak','excluded_from_stats',
+  /* [v5.0.0] The account column above now carries THIS TRADE's account, not the
+     day's. These four say what that account's rules were at the time, so a row
+     can be re-scored years later without the registry. */
+  'account_id','account_buffer','account_session_stop','account_day_net','logged_after_done']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* One row builder feeds the file and the clipboard, so the two can never drift
@@ -2094,8 +2591,9 @@ function buildRows(wide){
     const sessNote=[d.fix,d.note].filter(Boolean).join(' — ');
     if(!d.trades.length){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,sessNote,''];
-      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d),'','','','','','','','',d.acct||'',
-        '','','','','','','','','','','',carryInStreak(k),(d.excl?'YES':'')]):base);
+      out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d,resolveAcct(d.acct)),'','','','','','','','',acctLabel(d.acct),
+        '','','','','','','','','','','',carryInStreak(k),(d.excl?'YES':''),
+        d.acct||'',resolveAcct(d.acct).DRAWDOWN_BUFFER,resolveAcct(d.acct).DAILY_LOSS_LIMIT,'0.00','']):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -2107,7 +2605,7 @@ function buildRows(wide){
         (+t.mae||0),(+t.mfe||0),(+t.postRun||0),
         (t.pts!=null?t.pts.toFixed(2):''),(t.rMult!=null?t.rMult.toFixed(3):''),
         (t.maeR!=null?t.maeR.toFixed(3):''),(t.headroom!=null?t.headroom.toFixed(2):''),
-        (t.capture!=null?Math.round(t.capture*100):''),(d.acct||''),
+        (t.capture!=null?Math.round(t.capture*100):''),acctLabel(acctIdOf(t,d)),
         /* [v4.7] */
         (t.grp||''),
         (t.grp?(d.trades||[]).filter(x=>x.grp===t.grp).length:1),
@@ -2121,7 +2619,12 @@ function buildRows(wide){
         (+t.openRiskAfter||0).toFixed(2),
         ((d.openRisk&&d.openRisk.peak)||0).toFixed(2),
         carryInStreak(k),
-        (d.excl?'YES':'')]):base);
+        (d.excl?'YES':''),
+        acctIdOf(t,d),
+        A_of(t,d).DRAWDOWN_BUFFER,
+        A_of(t,d).DAILY_LOSS_LIMIT,
+        (((d.byAcct||{})[acctIdOf(t,d)]||{}).net||0).toFixed(2),
+        (t.afterDone?'YES':'')]):base);
     });
   });
   return out;
@@ -2429,15 +2932,42 @@ function wipe(){
 /* ---------- PERSIST + MIGRATE ---------- */
 function migrate(){
   if(!DB.days) DB.days={};
+  /* [v5.0.0] Seed the registry before anything reads it — recompute() below
+     resolves an account for every trade, so the accounts must exist first. */
+  if(!DB.accounts||!Object.keys(DB.accounts).length){
+    DB.accounts=JSON.parse(JSON.stringify(SEED_ACCOUNTS));
+  }
+  if(!DB.currentAcct||!DB.accounts[DB.currentAcct])
+    DB.currentAcct=Object.keys(DB.accounts)[0]||DEFAULT_ACCT;
+  DB.schema=5;
+  syncCFG();
+
   Object.keys(DB.days).forEach(k=>{
     const d=DB.days[k];
     d.trades=d.trades||[];
     d.passes=d.passes||[];
     d.esg=d.esg||[false,false,false];
     if(d.fix===undefined) d.fix='';
-    if(d.acct===undefined) d.acct='';
     if(d.note===undefined) d.note='';
+    if(d.done===undefined) d.done=false;
+    /* v4.x kept a free-text account NAME on the day. Map it onto a registry id
+       where one matches by id, label or account number; otherwise fall back to
+       the current account. Nothing is discarded — the old string is kept in
+       acctWas so a mismatch is recoverable rather than silently overwritten. */
+    if(d.acct===undefined) d.acct='';
+    if(!DB.accounts[d.acct]){
+      const was=d.acct;
+      const hit=was&&Object.keys(DB.accounts).find(id=>{
+        const a=DB.accounts[id];
+        return id===was||a.label===was||a.acctNo===was;
+      });
+      if(was&&!hit&&d.acctWas===undefined) d.acctWas=was;
+      d.acct=hit||DB.currentAcct||DEFAULT_ACCT;
+    }
     d.trades.forEach(t=>{
+      /* The account moves from the day to the trade. An existing row inherits
+         the day's account, which is exactly what it meant before. */
+      if(t.acct===undefined||!DB.accounts[t.acct]) t.acct=d.acct;
       if(!t.ins) t.ins='MNQ';
       if(t.outMins===undefined) t.outMins=null;
       if(t.f2===undefined)   t.f2='';
@@ -2477,9 +3007,18 @@ async function load(){
   const d=day();
   if(id==='f-panelf')   d.panelF=e.target.value;
   else if(id==='f-vix') d.vix=e.target.value;
-  else                  d.acct=e.target.value.trim();
+  else { d.acct=e.target.value; DB.currentAcct=e.target.value; syncCFG(); }
   recompute(d); save();
 }));
+/* Switching the account on the trade form recalculates the ceiling, the budget
+   and the whole size bar before anything else is typed. */
+document.getElementById('t-acct').addEventListener('change',()=>{ preflight(); paintDerived(); });
+['a-firm','a-prod','a-size'].forEach(id=>{
+  const e=document.getElementById(id); if(e) e.addEventListener('change',paintCatalogSelects);
+});
+['a-stop'].forEach(id=>{
+  const e=document.getElementById(id); if(e) e.addEventListener('input',paintAcctPreview);
+});
 document.getElementById('dd-excl').addEventListener('change',e=>{
   const d=day(); d.excl=!!e.target.checked; save();
 });
