@@ -817,7 +817,7 @@ const SEED_ACCOUNTS={
   'FTDFYL100496975424':{
     label:'Lightning 100K', firm:'Tradeify', product:'Lightning Funded', size:'100K',
     acctNo:'FTDFYL100496975424', phase:'funded', bought:'2026-10-02',
-    startBal:100000, balance:102014.60, status:'active', cost:0,
+    startBal:100000, balance:102014.60, status:'active', cost:462, withdrawn:0,
     /* 4 Oct 2026, 18:08 ET — $400 Daily Loss Limit set in Tradovate's account
        risk settings, with "Prevent changes when trading is locked" ALSO on, so
        the lock cannot be raised or disabled while it is in force. It sits inside
@@ -875,7 +875,11 @@ function resolveAcct(id){
        it? A rule the broker will act on is a different instrument from a rule
        written in a journal, and the journal should not blur the two. */
     PDLL:!!A.pdll,
-    BALANCE:+A.balance||0, START_BAL:+A.startBal||0, COST:+A.cost||0,
+    BALANCE:+A.balance||0, START_BAL:+A.startBal||0,
+    /* Paid in versus taken out. The ratio of these two is the only scoreboard
+       that settles whether an account is a business or a subscription, and
+       nothing else in this app was tracking either number. */
+    COST:+A.cost||0, WITHDRAWN:+A.withdrawn||0,
     PROFIT:(+A.balance||0)-(+A.startBal||0),
     DRAWDOWN_BUFFER:buffer,
     FIRM_DLL:(A.firmDLL!=null&&A.firmDLL!=='')?+A.firmDLL:(P.dllOpt?0:(+P.dll||0)),
@@ -2537,6 +2541,14 @@ function setAcctField(id,f,v){
   a[f]=(v===''?null:(f==='status'?v:+v));
   save();
 }
+/* Inline edit on the account card. `onchange` rather than `oninput` so the
+   re-render on save does not yank the field out from under the keyboard
+   mid-number. */
+function setAcctNum(id,f,v){
+  const a=DB.accounts[id]; if(!a) return;
+  a[f]=(String(v).trim()===''?0:+v);
+  save();
+}
 
 function renderAccounts(){
   const host=document.getElementById('acctrows'); if(!host) return;
@@ -2569,8 +2581,19 @@ function renderAccounts(){
       +row('firm max position', A.MAX_CONTRACTS+' micros')
       +row('consistency', A.CONSISTENCY_PCT?(A.CONSISTENCY_PCT+'% of '+(A.CONSISTENCY_BASIS==='target'?'profit target':'total profit')):'none')
       +row('balance', money(A.BALANCE)+(A.PROFIT?' · '+(A.PROFIT>0?'+':'')+money(A.PROFIT):''))
-      +row('cost', A.COST?money(A.COST):'—')
+      +row('paid in vs withdrawn', (A.COST||A.WITHDRAWN)
+            ? (money(A.COST)+' → '+money(A.WITHDRAWN)+' · '
+               +((A.WITHDRAWN-A.COST)>=0?'+':'')+money(A.WITHDRAWN-A.COST))
+            : '—')
       +(A.PNOTE?'<div class="help" style="color:var(--o1)">'+A.PNOTE+'</div>':'')
+      +'<div class="grid g3" style="margin-top:8px">'
+      +'<div><label class="lbl">BALANCE</label><input class="inp" type="number" step="0.01" value="'
+        +(A.BALANCE||'')+'" onchange="setAcctNum(\''+id+'\',\'balance\',this.value)"/></div>'
+      +'<div><label class="lbl">PAID IN — FEES, RESETS</label><input class="inp" type="number" step="0.01" value="'
+        +(A.COST||'')+'" onchange="setAcctNum(\''+id+'\',\'cost\',this.value)"/></div>'
+      +'<div><label class="lbl">WITHDRAWN — CASH RECEIVED</label><input class="inp" type="number" step="0.01" value="'
+        +(A.WITHDRAWN||'')+'" onchange="setAcctNum(\''+id+'\',\'withdrawn\',this.value)"/></div>'
+      +'</div>'
       +'<div class="btn-row3">'
       +'<button class="btn tiny '+(A.VERIFIED?'sec':'acc')+'" onclick="verifyAccount(\''+id+'\')">'
         +(A.VERIFIED?'MARK UNVERIFIED':'I CHECKED THE DASHBOARD')+'</button>'
@@ -2578,7 +2601,18 @@ function renderAccounts(){
       +'<button class="btn dgr tiny" onclick="delAccount(\''+id+'\')">REMOVE</button>'
       +'</div></div>';
   }).join('')
-  +(totCost?'<div class="help">Paid to the firms so far: <b>'+money(totCost)+'</b>. Withdrawals are not tracked yet — that arrives in 5.1, and the ratio of those two numbers is the only scoreboard that settles whether this is a business.</div>':'');
+  +(function(){
+    const paid=ids.reduce((s,id)=>s+(+DB.accounts[id].cost||0),0);
+    const out =ids.reduce((s,id)=>s+(+DB.accounts[id].withdrawn||0),0);
+    if(!paid&&!out) return '';
+    const net=out-paid;
+    return '<div class="pf '+(net>=0?'ok':'warn')+'">LIFETIME · paid in <b>'+money(paid)
+      +'</b> · withdrawn <b>'+money(out)+'</b> · net <b>'+(net>=0?'+':'')+money(net)+'</b><br>'
+      +(net<0
+        ? 'Still '+money(-net)+' down on fees. This is the scoreboard — not the balance on any dashboard, which is money you have not been paid. A funded account is a business when this number turns positive and stays there.'
+        : 'Ahead on fees. Keep it that way.')
+      +'</div>';
+  })();
 }
 
 /* ---------- ACTIONS ---------- */
