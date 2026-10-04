@@ -542,7 +542,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="rail"><div class="rail-l">DAYS LOGGED</div><div class="rail-v" id="s-days">0</div></div>
     <div class="rail"><div class="rail-l">TOTAL TRADES</div><div class="rail-v" id="s-trades">0</div></div>
     <div class="rail" id="s-net-r"><div class="rail-l">CUMULATIVE NET</div><div class="rail-v" id="s-net">$0</div></div>
-    <div class="rail" id="s-peak-r"><div class="rail-l">LARGEST POSITION</div><div class="rail-v" id="s-peak">0</div></div>
+    <div class="rail" id="s-peak-r"><div class="rail-l">PEAK CONCURRENT</div><div class="rail-v" id="s-peak">0</div><div class="tickecho" id="s-peak-sub"></div></div>
     <div class="rail" id="s-viol-r"><div class="rail-l">TOTAL VIOLATIONS</div><div class="rail-v" id="s-viol">0</div></div>
     <div class="rail" id="s-mls-r"><div class="rail-l">LONGEST LOSS RUN</div><div class="rail-v" id="s-mls">0</div><div class="tickecho" id="s-mls-sub"></div></div>
   </div>
@@ -2216,16 +2216,31 @@ function renderStats(){
      filtered figure dressed as a total is how a journal starts lying. */
   const dayKeys=Array.from(new Set(T.map(x=>x.date)));
   const net=T.reduce((s,x)=>s+netOf(x),0);
-  /* The largest POSITION in scope, not the largest parcel. A 10-lot that scaled
-     out in three pieces is a 10, and reading the biggest row would call it a 5 —
-     which is the same mistake v4.7 fixed everywhere else. */
-  const allPeak=allPositions(true,true).reduce((m,P)=>Math.max(m,+P.qty||0),0);
+  /* Two different numbers, and the risk one belongs on the rail.
+       PEAK CONCURRENT — most contracts open at any single moment, across every
+         position at once. On 2 Oct that is 16, and 16 lots behind an 18.75-point
+         stop is what the account was actually exposed to.
+       LARGEST SINGLE POSITION — the biggest one entry, which on the same day is
+         P3 at 10. Useful, smaller, and not the thing that ends accounts.
+     v5.0.0 briefly showed the second under a label that read like the first.
+     Both are shown now, and SESSION's PEAK POSITION means the same as the rail
+     above rather than something subtly different. */
+  let allPeak=0;
+  Object.keys(DB.days).forEach(k=>{
+    const d=DB.days[k];
+    const tr=(d.trades||[]).filter(t=>inScope(acctIdOf(t,d)));
+    if(!tr.length) return;
+    allPeak=Math.max(allPeak,concurrency({trades:tr}).peak);
+  });
+  const maxPos=allPositions(true,true).reduce((m,P)=>Math.max(m,+P.qty||0),0);
   const scopeMax=(STATS_SEL?STATS_SEL:acctIds()).reduce((m,id)=>Math.max(m,resolveAcct(id).MAX_CONTRACTS),0)||CFG.MAX_CONTRACTS;
   document.getElementById('s-days').textContent=dayKeys.length;
   document.getElementById('s-trades').textContent=T.length;
   document.getElementById('s-net').textContent=money(net);
   document.getElementById('s-net-r').className='rail '+(net<0?'bad':net>0?'good':'');
   document.getElementById('s-peak').textContent=allPeak;
+  { const sub=document.getElementById('s-peak-sub');
+    if(sub) sub.textContent=maxPos?('largest single position '+maxPos):''; }
   document.getElementById('s-peak-r').className='rail '+(allPeak>scopeMax?'bad':allPeak>RULES.BASE_CONTRACTS?'warn':'good');
   const V=T.reduce((s,x)=>s+hardCount(x),0);
   document.getElementById('s-viol').textContent=V;
