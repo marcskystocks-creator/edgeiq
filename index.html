@@ -129,6 +129,12 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 .bdval{text-align:right;color:var(--wh);}
 .thin{color:var(--gy);}
 
+.scoperow{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
+.sbtn{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.8px;padding:6px 10px;border-radius:4px;
+  border:1px solid var(--b2);background:var(--bg3);color:var(--gy);cursor:pointer;white-space:nowrap;}
+.sbtn.on{border-color:var(--acc);background:rgba(0,229,255,.1);color:var(--acc);}
+.sbtn.firm{border-style:dashed;}
+
 .bars{display:flex;gap:2px;flex-wrap:wrap;margin:10px 0 8px;}
 .bar{flex:1;min-width:7px;height:26px;border-radius:2px;background:var(--b1);border:1px solid var(--b1);}
 .bar.a{background:rgba(0,255,133,.55);border-color:var(--g1);}
@@ -527,6 +533,11 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 
 <!-- ============ BREAKDOWN ============ -->
 <div class="pane" id="p-stats">
+  <div class="card">
+    <div class="card-h"><div class="card-t">SCOPE</div><div class="card-n" id="scope-n">all accounts</div></div>
+    <div id="scope-bar"></div>
+    <div class="help" style="margin-top:4px">Every figure on this tab answers for the accounts lit up above. Tap a firm to compare rule sets; tap accounts to build any subset. <b style="color:var(--y1)">R normalises across accounts</b> — each trade is measured against its own account's risk — so expectancy pooled across a mixed selection is still the system's edge and not one account's. Raw dollars are not comparable that way; win rate and R are.</div>
+  </div>
   <div class="rails">
     <div class="rail"><div class="rail-l">DAYS LOGGED</div><div class="rail-v" id="s-days">0</div></div>
     <div class="rail"><div class="rail-l">TOTAL TRADES</div><div class="rail-v" id="s-trades">0</div></div>
@@ -560,6 +571,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">TAKEN vs PASSED AT THE SAME PANEL P SCORE</div><div id="bd-tvp"></div></div>
     <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
     <div class="bd"><div class="bd-t">BY ACCOUNT — DOES DISCIPLINE TRAVEL?</div><div id="bd-acct"></div></div>
+    <div class="bd"><div class="bd-t">BY FIRM — IS IT THE RULES OR IS IT YOU?</div><div id="bd-firm"></div></div>
     <div class="bd"><div class="bd-t">THE FIX THAT KEEPS COMING BACK</div><div id="bd-fix"></div></div>
     <div class="bd"><div class="bd-t">PROCESS GRADE vs MONEY</div><div id="bd-grade"></div></div>
     <div class="help">Any row with fewer than 20 trades is noise, not a finding. It is shown so you can see the sample filling, not so you can act on it. THE FIX THAT KEEPS COMING BACK counts days, not trades — three of the same fix inside thirty days is the pattern, not a bad day.</div>
@@ -1371,8 +1383,15 @@ function positionsOf(list){
   const ix={}, out=[];
   (list||[]).forEach((t,i)=>{
     const g=t.grp||('\u0000solo'+i);
-    if(ix[g]===undefined){ ix[g]=out.length; out.push({grp:g,mins:t.mins,outMins:t.outMins,qty:0,pnl:0,n:0}); }
+    /* [v5.0.0] Carry the member indices. A solo trade's key is a synthetic
+       '\u0000soloN' that matches no t.grp, so anything that tried to find a
+       position's rows by comparing grp strings silently found NOTHING for every
+       untagged trade — which made its risk 0, which dropped it out of expectancy
+       entirely. Hand-logged trades without a position tag were invisible to the
+       one number this journal exists to produce. */
+    if(ix[g]===undefined){ ix[g]=out.length; out.push({grp:g,idx:[],mins:t.mins,outMins:t.outMins,qty:0,pnl:0,n:0}); }
     const P=out[ix[g]];
+    P.idx.push(i);
     P.qty+=(+t.qty||0);
     P.pnl+=netOf(t);
     P.n++;
@@ -1962,7 +1981,7 @@ function render(){
             db.disabled=!!d.done; } }
 
   renderAccounts();
-  renderLog(); renderStats();
+  renderLog(); renderScope(); renderStats();
   document.getElementById('bk-when').textContent=DB.lastBackup?('last backup '+DB.lastBackup):'never backed up';
   const cb=document.getElementById('c-backup');
   cb.textContent='BACKUP '+(DB.lastBackup?DB.lastBackup.slice(5):'—');
@@ -2000,7 +2019,69 @@ function renderLog(){
 function openDay(k){ VIEW=k; go('session'); render(); }
 
 /* ---------- BREAKDOWN ---------- */
-function allTrades(){ const o=[]; Object.keys(DB.days).sort().forEach(k=>DB.days[k].trades.forEach(t=>o.push(Object.assign({date:k,grade:DB.days[k].grade,acct:DB.days[k].acct||''},t)))); return o; }
+/* [v5.0.0] SCOPE. null = every account. Otherwise an array of account ids, which
+   a firm button fills in bulk and the account chips edit. It filters the
+   BREAKDOWN tab only — the violation engine and carry-in streak stay global,
+   because those describe the trader and do not care which venue a trade sat on. */
+let STATS_SEL=null;
+function inScope(id){ return !STATS_SEL||STATS_SEL.indexOf(id)>=0; }
+function scopeLabel(){
+  if(!STATS_SEL) return 'all accounts';
+  if(STATS_SEL.length===1) return acctLabel(STATS_SEL[0]);
+  const firms=Array.from(new Set(STATS_SEL.map(id=>resolveAcct(id).FIRM)));
+  if(firms.length===1&&STATS_SEL.length===acctIds().filter(id=>resolveAcct(id).FIRM===firms[0]).length)
+    return firms[0]+' only';
+  return STATS_SEL.length+' accounts';
+}
+/* Which account's dollars to price R in. With exactly one account in scope that
+   is unambiguous; otherwise fall back to the one on screen and say so. */
+function scopeAcct(){ return (STATS_SEL&&STATS_SEL.length===1)?resolveAcct(STATS_SEL[0]):CFG; }
+function setScope(v){ STATS_SEL=v; renderScope(); renderStats(); }
+function setScopeFirm(f){
+  const ids=acctIds().filter(id=>resolveAcct(id).FIRM===f);
+  setScope(ids.length?ids:null);
+}
+function toggleScope(id){
+  let s=STATS_SEL?STATS_SEL.slice():acctIds().slice();
+  const i=s.indexOf(id);
+  if(i>=0) s.splice(i,1); else s.push(id);
+  /* Nothing selected and everything selected are the same view, so both collapse
+     back to null rather than leaving the tab blank or claiming a filter. */
+  if(!s.length||s.length===acctIds().length) s=null;
+  setScope(s);
+}
+function renderScope(){
+  const host=document.getElementById('scope-bar'); if(!host) return;
+  const ids=acctIds();
+  const firms=Array.from(new Set(ids.map(id=>resolveAcct(id).FIRM).filter(Boolean)));
+  let h='<div class="scoperow"><button class="sbtn'+(!STATS_SEL?' on':'')
+       +'" onclick="setScope(null)">ALL ACCOUNTS</button>';
+  firms.forEach(f=>{
+    const fi=ids.filter(id=>resolveAcct(id).FIRM===f);
+    const on=STATS_SEL&&STATS_SEL.length===fi.length&&fi.every(i=>STATS_SEL.indexOf(i)>=0);
+    h+='<button class="sbtn firm'+(on?' on':'')+'" onclick="setScopeFirm(\''+f.replace(/'/g,"\\'")+'\')">'
+      +f.replace(/</g,'&lt;')+'</button>';
+  });
+  h+='</div><div class="scoperow">';
+  ids.forEach(id=>{
+    h+='<button class="sbtn'+(inScope(id)?' on':'')+'" onclick="toggleScope(\''+id.replace(/'/g,"\\'")+'\')">'
+      +String(acctLabel(id)).replace(/</g,'&lt;')+'</button>';
+  });
+  h+='</div>';
+  host.innerHTML=h;
+  const n=document.getElementById('scope-n');
+  if(n) n.textContent=scopeLabel()+(STATS_SEL?' \u00b7 filtered':'');
+}
+
+function allTrades(){
+  const o=[];
+  Object.keys(DB.days).sort().forEach(k=>DB.days[k].trades.forEach(t=>{
+    const id=acctIdOf(t,DB.days[k]);
+    if(!inScope(id)) return;
+    o.push(Object.assign({date:k,grade:DB.days[k].grade},t,{acct:acctLabel(id),acctId:id}));
+  }));
+  return o;
+}
 
 function bdRows(el,groups,noteCount){
   const host=document.getElementById(el);
@@ -2027,7 +2108,16 @@ function bdStat(el,rows,note){
     +(note?'<div class="help">'+note+'</div>':'');
 }
 function median(a){ if(!a.length) return null; const s=a.slice().sort((x,y)=>x-y); const m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; }
-function allPasses(){ const o=[]; Object.keys(DB.days).sort().forEach(k=>(DB.days[k].passes||[]).forEach(x=>o.push(Object.assign({date:k},x)))); return o; }
+/* A pass belongs to the day's account — a setup you did not take was not taken
+   anywhere in particular, so the day's default is the only honest attribution. */
+function allPasses(){
+  const o=[];
+  Object.keys(DB.days).sort().forEach(k=>{
+    if(!inScope(DB.days[k].acct||DB.currentAcct||DEFAULT_ACCT)) return;
+    (DB.days[k].passes||[]).forEach(x=>o.push(Object.assign({date:k},x)));
+  });
+  return o;
+}
 
 function bucket(){ return {n:0,win:0,dec:0,pnl:0}; }
 function push(g,k,t){ if(!k&&k!==0) k='—'; if(!g[k])g[k]=bucket(); g[k].n++; g[k].pnl+=(+t.pnl||0); if(t.res!=='BREAKEVEN'){g[k].dec++; if(t.res==='WIN')g[k].win++;} }
@@ -2055,13 +2145,22 @@ function holdBand(h){
    that follows it is what that run would cost at the current budget. */
 
 /* Every position, every day, oldest first — the unit is the DECISION. */
-function allPositions(includeExcluded){
+/* `scoped` applies the BREAKDOWN tab's account filter. The violation engine and
+   carryInStreak call this WITHOUT it, because a loss streak belongs to the
+   trader and does not reset because the next trade went on a different account. */
+function allPositions(includeExcluded,scoped){
   const out=[];
   Object.keys(DB.days).sort().forEach(k=>{
     const d=DB.days[k];
     if(!includeExcluded && d.excl) return;
-    positionsOf(d.trades||[]).forEach(P=>out.push({date:k,res:P.res,pnl:P.pnl,qty:P.qty,
-      risk:(d.trades||[]).filter(t=>(t.grp||'')===P.grp).reduce((m,t)=>Math.max(m,+t.risk||0),0)}));
+    positionsOf(d.trades||[]).forEach(P=>{
+      const members=(P.idx||[]).map(i=>d.trades[i]).filter(Boolean);
+      if(!members.length) return;
+      const id=acctIdOf(members[0],d);
+      if(scoped&&!inScope(id)) return;
+      out.push({date:k,acct:id,res:P.res,pnl:P.pnl,qty:P.qty,
+        risk:members.reduce((m,t)=>Math.max(m,+t.risk||0),0)});
+    });
   });
   return out;
 }
@@ -2076,7 +2175,7 @@ function carryInStreak(dateKey){
 }
 
 function streakHistory(){
-  const P=allPositions(false);
+  const P=allPositions(false,true);
   let cur=0,curW=0,maxL=0,maxW=0,curKind='';
   P.forEach(x=>{
     if(x.res==='LOSS'){ cur++; curW=0; if(cur>maxL) maxL=cur; curKind='LOSS'; }
@@ -2089,7 +2188,7 @@ function streakHistory(){
    commission because that is the money that moves. A trade with no stop has no R
    and is left out rather than counted as zero. */
 function expectancy(){
-  const P=allPositions(false).filter(x=>x.risk>0);
+  const P=allPositions(false,true).filter(x=>x.risk>0);
   const W=P.filter(x=>x.res==='WIN'), L=P.filter(x=>x.res==='LOSS');
   if(!P.length) return null;
   const avgW = W.length ? W.reduce((s,x)=>s+x.pnl/x.risk,0)/W.length : null;
@@ -2106,19 +2205,30 @@ function expectancy(){
 }
 
 function renderStats(){
-  const T=allTrades(), keys=closedKeys();
-  document.getElementById('s-days').textContent=keys.length;
+  const T=allTrades();
+  /* [v5.0.0] Every rail here answers for the SCOPE, not the whole store. Days
+     are days that actually contain an in-scope trade; net is those trades' net;
+     peak position is the largest in-scope position rather than the day's. A
+     filtered figure dressed as a total is how a journal starts lying. */
+  const dayKeys=Array.from(new Set(T.map(x=>x.date)));
+  const net=T.reduce((s,x)=>s+netOf(x),0);
+  /* The largest POSITION in scope, not the largest parcel. A 10-lot that scaled
+     out in three pieces is a 10, and reading the biggest row would call it a 5 —
+     which is the same mistake v4.7 fixed everywhere else. */
+  const allPeak=allPositions(true,true).reduce((m,P)=>Math.max(m,+P.qty||0),0);
+  const scopeMax=(STATS_SEL?STATS_SEL:acctIds()).reduce((m,id)=>Math.max(m,resolveAcct(id).MAX_CONTRACTS),0)||CFG.MAX_CONTRACTS;
+  document.getElementById('s-days').textContent=dayKeys.length;
   document.getElementById('s-trades').textContent=T.length;
-  const net=T.reduce((s,x)=>s+(+x.pnl||0),0);
   document.getElementById('s-net').textContent=money(net);
   document.getElementById('s-net-r').className='rail '+(net<0?'bad':net>0?'good':'');
-  const allPeak=Object.keys(DB.days).reduce((m,k)=>Math.max(m,DB.days[k].peakPos||0),0);
   document.getElementById('s-peak').textContent=allPeak;
-  document.getElementById('s-peak-r').className='rail '+(allPeak>CFG.MAX_CONTRACTS?'bad':allPeak>CFG.BASE_CONTRACTS?'warn':'good');
+  document.getElementById('s-peak-r').className='rail '+(allPeak>scopeMax?'bad':allPeak>RULES.BASE_CONTRACTS?'warn':'good');
   const V=T.reduce((s,x)=>s+hardCount(x),0);
   document.getElementById('s-viol').textContent=V;
   document.getElementById('s-viol-r').className='rail '+(V?'bad':'good');
-  document.getElementById('conf-warn').textContent=T.length<100?'sample too small — '+T.length+' trades':T.length+' trades';
+  document.getElementById('conf-warn').textContent=
+    (T.length<100?'sample too small — '+T.length+' trades':T.length+' trades')
+    +(STATS_SEL?' · '+scopeLabel():'');
 
   /* ── [v4.9] streak history + expectancy ──────────────────────────────── */
   const SH=streakHistory();
@@ -2127,14 +2237,14 @@ function renderStats(){
      has no single answer. Price it on the current account and say which one \u2014
      an unlabelled dollar figure across a mixed registry is a number nobody can
      check. */
-  { const budget=budgetOf(CFG);
+  { const SA=scopeAcct(), budget=budgetOf(SA);
     const cost=SH.maxLoss*budget;
     document.getElementById('s-mls-sub').textContent=SH.maxLoss
-      ? ('$'+cost.toFixed(0)+' at '+CFG.LABEL+' budget \u00b7 '+(cost/CFG.DRAWDOWN_BUFFER*100).toFixed(0)+'% of its buffer'
+      ? ('$'+cost.toFixed(0)+' at '+SA.LABEL+' budget \u00b7 '+(cost/SA.DRAWDOWN_BUFFER*100).toFixed(0)+'% of its buffer'
          +' \u00b7 best run '+SH.maxWin)
       : 'no losing position yet';
     document.getElementById('s-mls-r').className='rail '+
-      (cost>=CFG.DRAWDOWN_BUFFER?'bad':cost>=CFG.DRAWDOWN_BUFFER*0.5?'warn':''); }
+      (cost>=SA.DRAWDOWN_BUFFER?'bad':cost>=SA.DRAWDOWN_BUFFER*0.5?'warn':''); }
 
   const EV=expectancy();
   const evb=document.getElementById('ev-body'), evn=document.getElementById('ev-n'),
@@ -2149,7 +2259,7 @@ function renderStats(){
     h+=row('average loss', EV.avgL==null?'— no losses yet':EV.avgL.toFixed(2)+'R');
     h+=row('EXPECTANCY',   EV.ev==null?'NOT COMPUTABLE'
             :(EV.ev>=0?'+':'')+EV.ev.toFixed(3)+'R per trade  ('
-             +money(EV.ev*budgetOf(CFG))+' at '+CFG.LABEL+' budget)');
+             +money(EV.ev*budgetOf(scopeAcct()))+' at '+scopeAcct().LABEL+' budget)');
     h+=row('breakeven win rate', EV.beActual!=null?(EV.beActual*100).toFixed(1)+'%'
             :(EV.beAt1R!=null?(EV.beAt1R*100).toFixed(1)+'%  (assuming a 1.00R loss)':'—'));
     evb.innerHTML=h;
@@ -2290,6 +2400,31 @@ function renderStats(){
     return {label:k,bar:g.n,cls:vpd<=0.5?'hi':vpd>=2?'lo':'',
       value:money(g.pnl)+' · '+g.n+'t · '+(g.n?(g.qty/g.n).toFixed(1):'0')+' avg lot · '+vpd.toFixed(1)+' viol/day'};
   }),'Violations per day is the column that matters. A gap between accounts is the size of the pressure the money is putting on you.');
+
+  /* ── BY FIRM ────────────────────────────────────────────────────────────
+     Accounts differ twice over: the firm's rules, and the money on the line.
+     Rolling up to the firm separates them. If execution is steady inside each
+     firm but differs between them, the rule set is doing it. If it varies
+     account by account inside one firm, the rules are not the explanation. */
+  const firmG={};
+  T.forEach(t=>{
+    const A=resolveAcct(t.acctId);
+    const k=A.FIRM||'not named';
+    if(!firmG[k]) firmG[k]={n:0,pnl:0,hard:0,qty:0,days:{},accts:{},win:0,dec:0,r:0,rn:0};
+    const g=firmG[k];
+    g.n++; g.pnl+=netOf(t); g.hard+=hardCount(t); g.qty+=(+t.qty||0);
+    g.days[t.date]=1; g.accts[t.acctId]=1;
+    if(t.res!=='BREAKEVEN'){ g.dec++; if(t.res==='WIN') g.win++; }
+    if(t.rMult!=null){ g.r+=t.rMult; g.rn++; }
+  });
+  bdStat('bd-firm',Object.keys(firmG).sort((a,b)=>firmG[b].n-firmG[a].n).map(k=>{
+    const g=firmG[k], nd=Object.keys(g.days).length, na=Object.keys(g.accts).length;
+    const vpd=nd?g.hard/nd:0, wr=g.dec?Math.round(g.win/g.dec*100):0;
+    return {label:k+' ('+na+' acct'+(na===1?'':'s')+')',bar:g.n,
+      cls:vpd<=0.5?'hi':vpd>=2?'lo':'',
+      value:wr+'% · '+(g.rn?(g.r/g.rn>=0?'+':'')+(g.r/g.rn).toFixed(2)+'R':'—')
+            +' · '+g.n+'t · '+vpd.toFixed(1)+' viol/day'};
+  }),'Win rate and average R are comparable across firms; dollars are not, because the buffers differ. A gap in violations per day between two firms is the rule set talking. The same gap between accounts INSIDE one firm is not — that one is you.');
 
   // THE FIX THAT KEEPS COMING BACK — counts days, not trades
   const gf={};
