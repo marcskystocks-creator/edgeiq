@@ -2524,6 +2524,17 @@ function verifyAccount(id){
   if(!confirm('Confirming '+(a.label||id)+'.\n\nYou are stating that you have opened the firm’s own dashboard and checked: the drawdown amount, whether it is end-of-day or intraday, the current floor, the daily loss limit, the max position size and the consistency rule.\n\nThe Select Flex 50K was lost partly because that check was never done.')) return;
   a.verified=true; save();
 }
+/* Whether the session stop is enforced by the BROKER or is just written down
+   here. The app cannot detect this — a platform setting is invisible to a web
+   page — so it has to be asserted, and asserting it should feel like a claim
+   rather than a checkbox. Anything not marked gets told, every session, that
+   nothing will act on its stop. */
+function togglePDLL(id){
+  const a=DB.accounts[id]; if(!a) return;
+  if(a.pdll){ a.pdll=false; save(); return; }
+  if(!confirm('Mark '+(a.label||id)+'’s session stop as enforced at the platform?\n\nYou are stating that you have actually set this limit in the broker’s own risk settings — Tradovate for Tradeify, TopstepX for Topstep — and that it will liquidate or lock the account on its own.\n\nIf it is only written down here, leave this off. A stop nothing acts on is a note, and the journal should keep saying so.')) return;
+  a.pdll=true; save();
+}
 function useAccount(id){
   if(!DB.accounts[id]) return;
   DB.currentAcct=id; day().acct=id; syncCFG(); recompute(day()); save();
@@ -2594,6 +2605,8 @@ function renderAccounts(){
       +'<div><label class="lbl">WITHDRAWN — CASH RECEIVED</label><input class="inp" type="number" step="0.01" value="'
         +(A.WITHDRAWN||'')+'" onchange="setAcctNum(\''+id+'\',\'withdrawn\',this.value)"/></div>'
       +'</div>'
+      +'<button class="btn tiny '+(A.PDLL?'sec':'dgr')+'" style="margin-top:7px" onclick="togglePDLL(\''+id+'\')">'
+        +(A.PDLL?'✓ STOP IS ENFORCED AT THE PLATFORM':'STOP IS ADVISORY — TAP IF YOU HAVE SET IT AT THE BROKER')+'</button>'
       +'<div class="btn-row3">'
       +'<button class="btn tiny '+(A.VERIFIED?'sec':'acc')+'" onclick="verifyAccount(\''+id+'\')">'
         +(A.VERIFIED?'MARK UNVERIFIED':'I CHECKED THE DASHBOARD')+'</button>'
