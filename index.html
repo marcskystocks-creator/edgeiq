@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.0.0</title>
+<title>EDGEIQ — Journal v5.0.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.0.0</div>
+    <div class="chip" title="build version">v5.0.2</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -672,16 +672,20 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
 <div class="pane" id="p-data">
 
   <div class="card">
-    <div class="card-h"><div class="card-t">IMPORT BROKER FILLS</div><div class="card-n">TradingView / Tradeify Orders.csv</div></div>
+    <div class="card-h"><div class="card-t">IMPORT BROKER FILLS</div><div class="card-n">TradingView Orders.csv · TopstepX Orders or Trades</div></div>
     <div id="imp-status"></div>
-    <div class="help" style="margin-top:0">Download <b>Orders.csv</b> from TradingView, then load it here. Fills are paired into round trips by entry order, so a 5-lot entry stays a 5-lot trade. Entry and exit times, size, direction, fill prices and P&amp;L are computed from the file — no typing, nothing from memory. An initial stop is picked up only when a protective stop sat on the losing side of the entry; a trailing stop is not risk and is ignored.</div>
+    <div class="help" style="margin-top:0">Load a broker file and it is paired into round trips, so a 5-lot entry stays a 5-lot trade. Entry and exit times, size, direction, fill prices and P&amp;L are computed from the file — no typing, nothing from memory. Three shapes are understood: <b>TradingView / Tradeify Orders.csv</b>, <b>TopstepX Orders</b> (both fill-level, paired FIFO), and <b>TopstepX Trades</b> (already matched, taken as given). An initial stop is picked up only when a protective stop sat on the losing side of the entry; a trailing stop is not risk and is ignored, and a matched-trade file carries no stops at all.</div>
     <div class="help"><b style="color:var(--y1)">What the file cannot tell you, it will not guess.</b> Panel P at entry, F2, setup, trigger and location import blank and show as soft flags. Tap an imported row to fill them in. That is the judgement half of the log and it is the half the analytics need.</div>
+    <div class="grid g2" style="margin-bottom:7px">
+      <div><label class="lbl" for="imp-acct">IMPORT THESE FILLS ONTO</label><select class="sel" id="imp-acct"></select></div>
+      <div><label class="lbl">WHAT THAT MEANS</label><div class="inp" id="imp-acctinfo" style="color:var(--gy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div></div>
+    </div>
     <div class="btn-row">
-      <button class="btn acc" onclick="document.getElementById('brokercsv').click()">LOAD ORDERS.CSV</button>
+      <button class="btn acc" onclick="document.getElementById('brokercsv').click()">LOAD BROKER FILE</button>
       <button class="btn sec" onclick="clearImported()">REMOVE IMPORTED TRADES THIS DAY</button>
     </div>
     <input type="file" id="brokercsv" accept=".csv,text/csv" style="display:none" onchange="doImport(this)"/>
-    <div class="help">Trades land on the dates in the file, not on the day you are viewing. Re-loading the same file replaces that date's imported trades rather than duplicating them; anything you typed by hand is left alone.</div>
+    <div class="help">Trades land on the dates in the file, not on the day you are viewing. <b style="color:var(--y1)">One file is one account.</b> Re-loading replaces only that account's imported trades on those dates — the other account's rows and anything you typed by hand are left alone. That is what lets a two-broker day go in as two files.</div>
   </div>
 
   <div class="card">
@@ -898,9 +902,25 @@ function resolveAcct(id){
     LOCKOUT_MINUTES:RULES.LOCKOUT_MINUTES, STOP_CAP_TICKS:RULES.STOP_CAP_TICKS,
     TICK_SIZE:RULES.TICK_SIZE, MIN_RR:RULES.MIN_RR,
     UNIT_SANITY_PTS:RULES.UNIT_SANITY_PTS, RISK_BUDGET_PCT:RULES.RISK_BUDGET_PCT,
-    COMMISSION_SIDE:RULES.COMMISSION_SIDE, POINT_VALUE:RULES.POINT_VALUE,
+    /* [v5.0.1] Commission is a property of the BROKER, not of you. Tradeify
+       bills $0.95 a side through Tradovate; Topstep bills $0.50 commission plus
+       $0.72 exchange and clearing fees per contract round turn, which is $0.61 a
+       side. Charging one account at the other's rate quietly biases every net
+       figure, every expectancy number and every scratch-or-loss call. An
+       explicit value on the account always wins; the firm default is only a
+       starting point, and it is editable on the account card. */
+    COMMISSION_SIDE:commSideOf(A), POINT_VALUE:RULES.POINT_VALUE,
     CONF_FRACTION:RULES.CONF_FRACTION
   };
+}
+/* Per-side cost for an account record. Explicit beats firm default beats the
+   person-level fallback. */
+const FIRM_COMM_SIDE={'Topstep':0.61,'Tradeify':0.95};
+function commSideOf(A){
+  if(!A) return RULES.COMMISSION_SIDE;
+  if(A.commSide!=null&&A.commSide!=='') return +A.commSide;
+  const f=FIRM_COMM_SIDE[A.firm];
+  return (f!=null)?f:RULES.COMMISSION_SIDE;
 }
 
 /* A trade carries its own account; the day supplies the default for new ones.
@@ -908,6 +928,17 @@ function resolveAcct(id){
    DAY to the TRADE, so one day's log can span every account you touched. */
 function acctIdOf(t,d){ return (t&&t.acct)||(d&&d.acct)||DB.currentAcct||DEFAULT_ACCT; }
 function A_of(t,d){ return resolveAcct(acctIdOf(t,d)); }
+
+/* [v5.0.1] POSITION KEY = ACCOUNT + TAG.
+   Both importers number positions from P1 within their own file, so a
+   two-broker day yields a Tradeify P1 and a Topstep P1. Keying on the bare tag
+   welded them into one position and blended two accounts' size, risk and P&L
+   into a trade that never existed — wrong peak concurrency, wrong position
+   risk, wrong expectancy. A position cannot span accounts, so the account
+   belongs in the key. On screen the tag stays short; only the grouping is
+   qualified. An untagged trade keeps its synthetic solo key, which matches
+   nothing by construction. */
+function grpKey(t,i){ return t.grp?((t.acct||'')+'\u0001'+t.grp):('\u0000solo'+i); }
 
 /* CFG is a live view of the CURRENT account rather than a constant, so every
    v4.9 call site keeps reading CFG and keeps being right about the account on
@@ -1081,11 +1112,41 @@ function budgetOf(A){ A=A||CFG; return A.DAILY_LOSS_LIMIT*A.RISK_BUDGET_PCT/100;
    [FIX] Before v4.3 a 3-loss streak returned a cap of 0 permanently: the cap
    could only be lifted by a win, and a win was impossible at a cap of 0. The
    rule was never "done for the day" — it is 20 minutes, then 6/6 and base size. */
-function lockoutEnd(prior){
-  const P=positionsOf(prior);                  // [v4.7] three losing POSITIONS, not parcels
-  let streak=0;
-  for(let i=P.length-1;i>=0;i--){ if(P[i].res==='LOSS') streak++; else break; }
-  if(streak<3) return null;
+/* ── RESOLVED RUN ───────────────────────────────────────────────────────────
+   [v5.0.2] A streak is a run of losing OUTCOMES in the order they RESOLVED, as
+   of the moment being judged. Three things were wrong before:
+
+   1. Order. Positions were walked in ENTRY order. A trade entered early and
+      exited late sat in the sequence ahead of trades that had already come and
+      gone — so the run read in an order the day never happened in.
+   2. Resolution. A position still OPEN already carried its final result, so a
+      winner that had not happened yet reset the streak. On 5 Oct the Lightning
+      entry at 10:23 won at 10:46; at 10:25 and 10:26 it was still live, and it
+      reset a Topstep run of four straight losses down to two. The 20-minute
+      lockout therefore never fired, 41 seconds before a 5-lot revenge entry —
+      the single trade of the day the rule existed to stop.
+   3. It only mattered once two accounts ran at once. With one account entries
+      and exits alternated and the fault stayed invisible. This is what it looks
+      like for a latent modelling error to become a live safety failure.
+
+   A position with no exit time recorded is still counted — the result is known
+   even if the timing is not, and dropping it would under-count a real run.
+   Only a position positively known to be open at this moment is excluded. */
+function resolvedPositions(prior,atMins){
+  const P=positionsOf(prior).filter(p=>p.outMins==null||atMins==null||p.outMins<=atMins);
+  P.sort((a,b)=>{
+    const ax=(a.outMins!=null?a.outMins:a.mins), bx=(b.outMins!=null?b.outMins:b.mins);
+    return (ax-bx)||(a.mins-b.mins);
+  });
+  return P;
+}
+function lossRun(P){
+  let n=0; for(let i=P.length-1;i>=0;i--){ if(P[i].res==='LOSS') n++; else break; }
+  return n;
+}
+function lockoutEnd(prior,atMins){
+  const P=resolvedPositions(prior,atMins);     // [v4.7] losing POSITIONS, not parcels
+  if(lossRun(P)<3) return null;
   const last=P[P.length-1];
   const base=(last.outMins!=null&&last.outMins>=last.mins)?last.outMins:last.mins;
   return base+CFG.LOCKOUT_MINUTES;
@@ -1102,11 +1163,10 @@ function tradeCap(d,prior,conf,stopPts,ins,mins,A){
   const frac=A.CONF_FRACTION[conf];
   if(!(frac>0)) return 0;
 
-  const POS=positionsOf(prior);
-  let streak=0;
-  for(let i=POS.length-1;i>=0;i--){ if(POS[i].res==='LOSS') streak++; else break; }
+  const POS=resolvedPositions(prior,mins);
+  const streak=lossRun(POS);
 
-  const lo=lockoutEnd(prior);
+  const lo=lockoutEnd(prior,mins);
   if(lo!==null){
     if(mins!=null&&mins<lo) return 0;   // inside the 20 minutes — nothing permitted
     if(conf!=='6/6')        return 0;   // out of it, but the rule is 6/6 only
@@ -1135,7 +1195,7 @@ function concurrency(d){
   const ev=[];
   d.trades.forEach((t,i)=>{
     const out=(t.outMins!=null&&t.outMins>=t.mins)?t.outMins:t.mins;
-    const g=t.grp||('\u0000solo'+i);
+    const g=grpKey(t,i);
     ev.push({t:t.mins,q:+t.qty||0,i:i,g:g,open:true});
     ev.push({t:out,   q:-(+t.qty||0),i:i,g:g,open:false});
   });
@@ -1263,7 +1323,7 @@ function analyze(t,prior,d,openBefore){
      parcel's gain against what the whole position offered. */
   const gOf=(k)=>{
     if(!t.grp) return +t[k]||0;
-    return (d.trades||[]).reduce((m,x)=>x.grp===t.grp?Math.max(m,+x[k]||0):m,0);
+    return (d.trades||[]).reduce((m,x)=>sameGrp(x,t)?Math.max(m,+x[k]||0):m,0);
   };
   const mae=gOf('mae'), mfe=gOf('mfe'), run=+t.postRun||0;
   const qty=+t.qty||0;
@@ -1307,7 +1367,7 @@ function analyze(t,prior,d,openBefore){
      missing anything, so do not nag about them. Ran-on is per parcel and is
      checked separately, because each piece exits at a different moment. */
   const grpHasExc = t.grp
-    ? (d.trades||[]).some(x=>x.grp===t.grp&&((+x.mae||0)||(+x.mfe||0)))
+    ? (d.trades||[]).some(x=>sameGrp(x,t)&&((+x.mae||0)||(+x.mfe||0)))
     : (mae||mfe);
   if(!grpHasExc) f.push('EXCURSION NOT RECORDED');
   if(mfeBad) f.push('POINTS '+ptsGained.toFixed(2)+' EXCEED THE MFE OF '+mfe
@@ -1323,10 +1383,10 @@ function analyze(t,prior,d,openBefore){
      one decision, and counting it as three would reset a loss streak with
      paperwork, inflate the trade count, and let a scaled position slip past the
      30-trade ceiling without a single extra entry. */
-  const POS=positionsOf(prior);
+  const POS=resolvedPositions(prior,t.mins);
   const first=firstP, gq=gqty;
-  let streak=0; for(let i=POS.length-1;i>=0;i--){ if(POS[i].res==='LOSS') streak++; else break; }
-  const lo=lockoutEnd(prior);
+  const streak=lossRun(POS);
+  const lo=lockoutEnd(prior,t.mins);
   if(lo!==null&&first){
     if(t.mins<lo) f.push('TRADED INSIDE THE '+A.LOCKOUT_MINUTES+'-MIN LOCKOUT — it cleared at '+fmtMins(lo));
     else if(t.conf&&t.conf!=='6/6') f.push('POST-LOCKOUT — 6/6 ONLY, took '+t.conf);
@@ -1371,7 +1431,13 @@ function analyze(t,prior,d,openBefore){
    across 31 — 2.8% of the day. A journal that reports a number the broker
    statement never shows is a journal you stop trusting. One round turn is two
    sides, so a parcel of n contracts costs n x 2 x COMMISSION_SIDE. */
-function feeFor(t){ return (Math.abs(+t.qty||0))*2*CFG.COMMISSION_SIDE; }
+/* [v5.0.1] Charge the TRADE's account, not whichever account is on screen.
+   Before this, opening the Topstep tab re-priced every Tradeify row in the
+   store, and vice versa — the figures moved when nothing had happened. */
+function feeFor(t){
+  const id=t&&t.acct, A=id&&DB&&DB.accounts?DB.accounts[id]:null;
+  return (Math.abs(+t.qty||0))*2*(A?commSideOf(A):CFG.COMMISSION_SIDE);
+}
 function netOf(t){ return (+t.pnl||0) - feeFor(t); }
 function dayGross(d){ return (d.trades||[]).reduce((s,x)=>s+(+x.pnl||0),0); }
 function dayFees(d){  return (d.trades||[]).reduce((s,x)=>s+feeFor(x),0); }
@@ -1386,7 +1452,7 @@ function dayNet(d){   return dayGross(d)-dayFees(d); }
 function positionsOf(list){
   const ix={}, out=[];
   (list||[]).forEach((t,i)=>{
-    const g=t.grp||('\u0000solo'+i);
+    const g=grpKey(t,i);
     /* [v5.0.0] Carry the member indices. A solo trade's key is a synthetic
        '\u0000soloN' that matches no t.grp, so anything that tried to find a
        position's rows by comparing grp strings silently found NOTHING for every
@@ -1409,13 +1475,19 @@ function positionsOf(list){
    the one that should carry the position's size verdict. Without this a 5-lot
    that scaled out in two pieces would be judged twice, as a 4 and as a 1 —
    neither of which is the size that was actually taken. */
+/* [v5.0.2] Same-position test. The tag alone is not an identity: both importers
+   number from P1 inside their own file, so a two-broker day has a Tradeify P1
+   and a Topstep P1. Every bare tag comparison silently merged them — which is
+   how a 1-lot Topstep entry came to be scored as a 2-lot position against a
+   ceiling of 1. Account first, then tag. */
+function sameGrp(a,b){ return !!a.grp && a.grp===b.grp && (a.acct||'')===(b.acct||''); }
 function grpQtyOf(d,t){
   if(!t.grp) return (+t.qty||0);
-  return (d.trades||[]).filter(x=>x.grp===t.grp).reduce((s,x)=>s+(+x.qty||0),0);
+  return (d.trades||[]).filter(x=>sameGrp(x,t)).reduce((s,x)=>s+(+x.qty||0),0);
 }
 function isFirstParcel(d,t){
   if(!t.grp) return true;
-  const g=(d.trades||[]).filter(x=>x.grp===t.grp);
+  const g=(d.trades||[]).filter(x=>sameGrp(x,t));
   return !g.length||g[0]===t;
 }
 
@@ -1509,15 +1581,15 @@ function recompute(d){
      total mid-group describes a moment that never existed. Give every parcel the
      figure once the whole position was on. */
   const gMax={};
-  d.trades.forEach((t,i)=>{ const g=t.grp||('\u0000solo'+i);
+  d.trades.forEach((t,i)=>{ const g=grpKey(t,i);
     gMax[g]=Math.max(gMax[g]||0,+BI[i]||0); });
-  d.trades.forEach((t,i)=>{ t.openRiskAfter=gMax[t.grp||('\u0000solo'+i)]||0; });
+  d.trades.forEach((t,i)=>{ t.openRiskAfter=gMax[grpKey(t,i)]||0; });
   /* One entry that scaled out into three parcels is still ONE decision, and all
      three "open" at the same minute — so flag the parcel where the position was
      fully on, once, rather than three times for the same moment. */
   const worst={};
   d.trades.forEach((t,i)=>{
-    const g=t.grp||('\u0000solo'+i);
+    const g=grpKey(t,i);
     if(worst[g]===undefined||(+BI[i]||0)>(+BI[worst[g]]||0)) worst[g]=i;
   });
   Object.keys(worst).forEach(g=>{
@@ -1662,7 +1734,7 @@ function paintDerived(){
 function lockState(){
   const d=day();
   if(VIEW!==etDate()) return null;
-  const lo=lockoutEnd(d.trades.slice());
+  const lo=lockoutEnd(d.trades.slice(),etMins());
   if(lo===null) return null;
   const left=lo*60-etSecs();
   return {end:lo,secs:left,active:left>0};
@@ -1830,6 +1902,15 @@ function render(){
   if(fa){ fa.innerHTML=opts; fa.value=d.acct||DB.currentAcct||DEFAULT_ACCT; }
   if(ta){ const keep=ta.value; ta.innerHTML=opts;
           ta.value=(keep&&DB.accounts[keep])?keep:(d.acct||DB.currentAcct||DEFAULT_ACCT); }
+  /* [v5.0.1] A third selector, on the DATA tab, and it is the most consequential
+     of the three: it decides which account's imported rows a file is allowed to
+     replace. It deliberately does NOT follow the day's account — a file is
+     loaded long after the session and the day selector is the wrong default to
+     inherit when the cost of being wrong is deleting the other broker's rows. */
+  { const ia=document.getElementById('imp-acct');
+    if(ia){ const keep=ia.value; ia.innerHTML=opts;
+            ia.value=(keep&&DB.accounts[keep])?keep:(DB.importAcct&&DB.accounts[DB.importAcct]?DB.importAcct:(DB.currentAcct||DEFAULT_ACCT));
+            paintImportAcct(); } }
   { const gl=document.getElementById('grplist');
     if(gl){ const tags=Array.from(new Set((d.trades||[]).map(x=>x.grp).filter(Boolean)));
       gl.innerHTML=tags.map(a=>'<option value="'+String(a).replace(/"/g,'&quot;')+'"></option>').join(''); } }
@@ -2620,6 +2701,18 @@ function renderAccounts(){
       +'<div><label class="lbl">WITHDRAWN — CASH RECEIVED</label><input class="inp" type="number" step="0.01" value="'
         +(A.WITHDRAWN||'')+'" onchange="setAcctNum(\''+id+'\',\'withdrawn\',this.value)"/></div>'
       +'</div>'
+      /* [v5.0.1] Commission per SIDE, per account. Commissions and exchange fees
+         both count — what matters is the all-in cost of one contract one way.
+         Blank falls back to the firm default; set it from a real statement the
+         first time you reconcile, because an assumed rate quietly moves every
+         net figure and every scratch-or-loss call in the store. */
+      +'<div class="grid g3" style="margin-top:8px">'
+      +'<div><label class="lbl">COMMISSION + FEES PER SIDE</label><input class="inp" type="number" step="0.01" placeholder="'
+        +commSideOf(DB.accounts[id]||{}).toFixed(2)+'" value="'
+        +((DB.accounts[id]&&DB.accounts[id].commSide!=null&&DB.accounts[id].commSide!=='')?DB.accounts[id].commSide:'')
+        +'" onchange="setAcctField(\''+id+'\',\'commSide\',this.value)"/>'
+        +'<div class="tickecho">'+money(commSideOf(DB.accounts[id]||{})*2)+' a contract round turn</div></div>'
+      +'</div>'
       +'<button class="btn tiny '+(A.PDLL?'sec':'dgr')+'" style="margin-top:7px" onclick="togglePDLL(\''+id+'\')">'
         +(A.PDLL?'✓ STOP IS ENFORCED AT THE PLATFORM':'STOP IS ADVISORY — TAP IF YOU HAVE SET IT AT THE BROKER')+'</button>'
       +'<div class="btn-row3">'
@@ -2842,7 +2935,7 @@ function buildRows(wide){
         (t.capture!=null?Math.round(t.capture*100):''),acctLabel(acctIdOf(t,d)),
         /* [v4.7] */
         (t.grp||''),
-        (t.grp?(d.trades||[]).filter(x=>x.grp===t.grp).length:1),
+        (t.grp?(d.trades||[]).filter(x=>sameGrp(x,t)).length:1),
         grpQtyOf(d,t),
         (+t.tp||0)||'',
         ((+t.tp>0&&+t.stopPts>0)?(t.tp/t.stopPts).toFixed(2):''),
@@ -2970,22 +3063,88 @@ function productOf(s){
   return 'MNQ';
 }
 
+/* [v5.0.1] TOPSTEPX TRADES EXPORT — already-matched round trips.
+   TopstepX offers two downloads. Orders is fill-level and pairs FIFO like
+   TradingView's, once its column names are recognised. Trades is pre-matched:
+   one row per closed parcel, with its own entry, exit, size and P&L. There is
+   nothing to pair, so this branch takes the broker's own matching rather than
+   re-deriving it — the broker is the authority on what closed against what.
+
+   Parcels that share an entry time, price and direction were ONE order filled
+   once and scaled out of, so they share a position tag. A 5-lot entered at
+   10:26:28 and let go in a 4 and a 1 is one position, not two trades.
+
+   What this file cannot carry: stop prices. There are no working orders in it,
+   so every row imports at stopPts 0 and must have its stop typed in. A matched
+   file is a record of what happened, not of what was risked. */
+function parseTopstepTrades(lines,map){
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const r=splitCSVLine(lines[i]);
+    const inS=parseFillStamp(pick(r,map,['EnteredAt','Entered At']));
+    const outS=parseFillStamp(pick(r,map,['ExitedAt','Exited At']));
+    if(!inS||!outS) continue;
+    const prod=productOf(pick(r,map,['ContractName','Contract','Product','Product Description']));
+    const typ=pick(r,map,['Type','Side','B/S']).toUpperCase();
+    const dir=typ.indexOf('SHORT')>=0||typ.indexOf('SELL')>=0?-1:
+              (typ.indexOf('LONG')>=0||typ.indexOf('BUY')>=0?1:0);
+    const qty=parseFloat(pick(r,map,['Size','Quantity','filledQty'])||'0');
+    const inPx=parseFloat(pick(r,map,['EntryPrice','Entry Price'])||'');
+    const outPx=parseFloat(pick(r,map,['ExitPrice','Exit Price'])||'');
+    if(!dir||!(qty>0)||!isFinite(inPx)||!isFinite(outPx)) continue;
+    rows.push({date:inS.date,mins:inS.mins,sec:inS.sec,
+               outMins:outS.mins,outSec:outS.sec,
+               prod:prod,dir:dir,qty:qty,px:inPx,outPx:outPx});
+  }
+  if(!rows.length) return {error:'No completed trades with an entry time, an exit time and both prices were found in that file.'};
+  rows.sort((a,b)=>(a.sec-b.sec)||(a.outSec-b.outSec));
+  /* One tag per distinct entry order. */
+  const gid={}; let n=0;
+  rows.forEach(e=>{
+    const k=e.sec+'|'+e.px+'|'+e.dir+'|'+e.prod;
+    if(gid[k]===undefined){ n++; gid[k]='P'+n; }
+    e.grp=gid[k];
+  });
+  const byDay={};
+  rows.forEach(e=>{ (byDay[e.date]=byDay[e.date]||[]).push(e); });
+  return {byDay:byDay,stops:[],open:[]};
+}
+
 function parseBrokerCSV(text){
   const lines=String(text).split(/\r?\n/).filter(l=>l.trim()!=='');
   if(lines.length<2) return {error:'That file has no rows in it.'};
   const head=splitCSVLine(lines[0]);
   const map={}; head.forEach((h,i)=>{ const k=normKey(h); if(map[k]===undefined) map[k]=i; });
-  if(map['bs']===undefined&&map['side']===undefined) return {error:'No B/S or Side column — this does not look like a TradingView Orders.csv.'};
+
+  /* [v5.0.1] Pick the shape before reading a single row. A matched-trade export
+     has an exit stamp on every row and no side column; a fill-level export has a
+     side and no exit. Testing for the matched shape FIRST matters, because
+     TopstepX's Trades file does carry a Type column and would otherwise be read
+     as fills that never close. */
+  const matched = map['enteredat']!==undefined && map['exitedat']!==undefined;
+  if(matched){
+    const m=parseTopstepTrades(lines,map);
+    if(m.error) return m;
+    const out=emitTrades(m.byDay,m.stops,m.open);
+    out.matched=true;
+    return out;
+  }
+  if(map['bs']===undefined&&map['side']===undefined)
+    return {error:'No B/S, Side, or EnteredAt/ExitedAt columns — this does not look like a TradingView Orders.csv or a TopstepX export.'};
 
   const fills=[],stops=[];
   for(let i=1;i<lines.length;i++){
     const r=splitCSVLine(lines[i]);
     const status=pick(r,map,['Status']).toUpperCase();
     const side=pick(r,map,['B/S','Side']).toUpperCase();
-    const prod=productOf(pick(r,map,['Product','Contract','Product Description']));
+    /* [v5.0.1] TopstepX names the same five things differently: ContractName,
+       FilledAt, Size, ExecutePrice, StopPrice. Aliases rather than a second
+       parser — it is the same fill-level shape underneath. */
+    const prod=productOf(pick(r,map,['Product','Contract','Product Description','ContractName']));
     const type=pick(r,map,['Type']).toUpperCase();
-    const stopPx=parseFloat(pick(r,map,['Stop Price','decimalStop'])||'');
-    const stamp=parseFillStamp(pick(r,map,['Fill Time'])) || parseFillStamp(pick(r,map,['Timestamp']));
+    const stopPx=parseFloat(pick(r,map,['Stop Price','decimalStop','StopPrice'])||'');
+    const filledAt=pick(r,map,['Fill Time','FilledAt']);
+    const stamp=parseFillStamp(filledAt) || parseFillStamp(pick(r,map,['Timestamp','CreatedAt']));
     if(!stamp||!side) continue;
     const dir=side.indexOf('BUY')>=0?1:(side.indexOf('SELL')>=0?-1:0);
     if(!dir) continue;
@@ -2993,9 +3152,12 @@ function parseBrokerCSV(text){
     if(type.indexOf('STOP')>=0&&isFinite(stopPx)){
       stops.push({date:stamp.date,sec:stamp.sec,prod:prod,dir:dir,px:stopPx});
     }
-    if(status.indexOf('FILLED')<0) continue;
-    const qty=parseFloat(pick(r,map,['filledQty','Filled Qty','Quantity'])||'0');
-    const px=parseFloat(pick(r,map,['avgPrice','Avg Fill Price','decimalFillAvg'])||'');
+    /* A populated fill timestamp is itself proof of a fill. TradingView writes
+       "Filled" into Status; other platforms write a code, or nothing. Trusting
+       either signal alone drops real fills, so accept both. */
+    if(status.indexOf('FILLED')<0 && !filledAt) continue;
+    const qty=parseFloat(pick(r,map,['filledQty','Filled Qty','Quantity','Size'])||'0');
+    const px=parseFloat(pick(r,map,['avgPrice','Avg Fill Price','decimalFillAvg','ExecutePrice'])||'');
     if(!(qty>0)||!isFinite(px)) continue;
     fills.push({date:stamp.date,mins:stamp.mins,sec:stamp.sec,prod:prod,dir:dir,qty:qty,px:px,type:type});
   }
@@ -3041,9 +3203,17 @@ function parseBrokerCSV(text){
     }
   });
 
-  const trades=[],open=[];
+  const open=[];
   Object.keys(books).forEach(k=>books[k].forEach(e=>open.push({date:k.split('|')[0],prod:e.prod,qty:e.rem,mins:e.mins})));
+  return emitTrades(byDay,stops,open);
+}
 
+/* [v5.0.1] Shared tail. Both parsers hand over the same thing — parcels grouped
+   by day, each with an entry, an exit and a position tag — so scoring, stop
+   recovery and row construction live here once rather than in each branch. */
+function emitTrades(byDay,stops,open){
+  const trades=[];
+  stops=stops||[]; open=open||[];
   Object.keys(byDay).forEach(dt=>{
     byDay[dt].sort((a,b)=>(a.sec-b.sec)||(a.outSec-b.outSec));
     byDay[dt].forEach(e=>{
@@ -3090,8 +3260,32 @@ function parseBrokerCSV(text){
   return {trades:trades,open:open};
 }
 
+/* The one-line summary beside the import selector. It states the consequence,
+   not the rules — what is about to be overwritten is the only thing worth
+   reading before loading a file. */
+function paintImportAcct(){
+  const el=document.getElementById('imp-acctinfo'); if(!el) return;
+  const id=importAcctId(), A=resolveAcct(id);
+  let n=0, days=0;
+  Object.keys(DB.days||{}).forEach(k=>{
+    const c=(DB.days[k].trades||[]).filter(t=>t.imported&&acctIdOf(t,DB.days[k])===id).length;
+    if(c){ n+=c; days++; }
+  });
+  el.textContent='$'+A.DRAWDOWN_BUFFER.toFixed(0)+' buffer · $'+commSideOf(DB.accounts[id]||{}).toFixed(2)
+    +'/side · '+(n?('replaces '+n+' imported row'+(n>1?'s':'')+' across '+days+' day'+(days>1?'s':'')+' on this account only')
+                  :'no imported rows on this account yet');
+}
+function importAcctId(){
+  const el=document.getElementById('imp-acct');
+  const v=el&&el.value;
+  return (v&&DB.accounts&&DB.accounts[v])?v:(DB.currentAcct||DEFAULT_ACCT);
+}
+
 function doImport(inp){
   const f=inp.files[0]; if(!f) return;
+  /* [v5.0.1] Resolve the target BEFORE the read, so an account switched while
+     the file dialog was open cannot land the rows somewhere else. */
+  const target=importAcctId();
   const r=new FileReader();
   r.onload=()=>{
     const res=parseBrokerCSV(r.result);
@@ -3100,18 +3294,37 @@ function doImport(inp){
     if(!res.trades.length){ flashImport('No completed round trips in that file — every fill is still open.',true); return; }
 
     const dates=Array.from(new Set(res.trades.map(t=>t.date))).sort();
+    let wiped=0;
     dates.forEach(dt=>{
       if(!DB.days[dt]) DB.days[dt]=blankDay(dt);
       const d=DB.days[dt];
-      d.trades=(d.trades||[]).filter(t=>!t.imported);        // replace, never duplicate
-      res.trades.filter(t=>t.date===dt).forEach(t=>{ const c=Object.assign({},t); delete c.date; d.trades.push(c); });
+      /* [v5.0.1] THE FIX. v5.0.0 dropped every imported row on the date, with no
+         idea which account it belonged to — so importing Topstep deleted the
+         Tradeify rows and every judgement field typed into them. The replace is
+         now scoped to the target account: one file replaces one account's
+         imported history and nothing else. Hand-typed rows are still untouched
+         on every account. */
+      const before=(d.trades||[]).length;
+      d.trades=(d.trades||[]).filter(t=>!(t.imported&&acctIdOf(t,d)===target));
+      wiped+=before-d.trades.length;
+      res.trades.filter(t=>t.date===dt).forEach(t=>{
+        const c=Object.assign({},t); delete c.date;
+        c.acct=target;                       // stamped, never inferred later
+        c.afterDone=!!d.done;
+        d.trades.push(c);
+      });
       recompute(d);
     });
 
+    DB.importAcct=target;
     const n=res.trades.length;
-    let msg=n+' trade'+(n>1?'s':'')+' imported across '+dates.length+' day'+(dates.length>1?'s':'')+': '+dates.join(', ')
-      +'. Hand-typed trades were kept. Now open each day and fill in Panel P, F2, setup, trigger and location.';
+    let msg=n+' trade'+(n>1?'s':'')+' imported onto '+acctLabel(target)+' across '+dates.length
+      +' day'+(dates.length>1?'s':'')+': '+dates.join(', ')+'. ';
+    msg+=wiped?('Replaced '+wiped+' earlier imported row'+(wiped>1?'s':'')+' on that account. ')
+              :'Nothing was replaced. ';
+    msg+='Other accounts and every hand-typed trade were left alone. Now open each day and fill in Panel P, F2, setup, trigger and location.';
     if(res.open.length) msg+=' '+res.open.length+' entr'+(res.open.length>1?'ies were':'y was')+' still open at the end of the file and could not be paired.';
+    if(res.matched) msg+=' This was a matched-trade file, so it carries no stop prices — every row needs its stop typed in.';
     VIEW=dates[dates.length-1];
     flashImport(msg,false);
     save();
@@ -3119,14 +3332,17 @@ function doImport(inp){
   r.onerror=()=>{ flashImport('That file could not be read.',true); inp.value=''; };
   r.readAsText(f);
 }
+/* [v5.0.1] Scoped to the account in the import selector, for the same reason
+   the import is: on a two-broker day, "remove imported trades" meaning ALL of
+   them is a deletion nobody asks for. */
 function clearImported(){
-  const d=day();
-  const n=(d.trades||[]).filter(t=>t.imported).length;
-  if(!n){ flashImport('No imported trades on '+VIEW+'.',true); return; }
-  if(!confirm('Remove '+n+' imported trade(s) from '+VIEW+'? Hand-typed trades stay.')) return;
-  d.trades=d.trades.filter(t=>!t.imported);
+  const d=day(), target=importAcctId(), lab=acctLabel(target);
+  const n=(d.trades||[]).filter(t=>t.imported&&acctIdOf(t,d)===target).length;
+  if(!n){ flashImport('No imported trades on '+lab+' for '+VIEW+'.',true); return; }
+  if(!confirm('Remove '+n+' imported trade(s) on '+lab+' from '+VIEW+'?\n\nHand-typed trades stay, and other accounts are untouched.')) return;
+  d.trades=d.trades.filter(t=>!(t.imported&&acctIdOf(t,d)===target));
   recompute(d); save();
-  flashImport(n+' imported trade(s) removed from '+VIEW+'.',false);
+  flashImport(n+' imported trade(s) removed from '+lab+' on '+VIEW+'.',false);
 }
 function flashImport(msg,isErr){
   const el=document.getElementById('imp-status');
@@ -3255,6 +3471,8 @@ async function load(){
 /* Switching the account on the trade form recalculates the ceiling, the budget
    and the whole size bar before anything else is typed. */
 document.getElementById('t-acct').addEventListener('change',()=>{ preflight(); paintDerived(); });
+{ const ia=document.getElementById('imp-acct');
+  if(ia) ia.addEventListener('change',()=>{ DB.importAcct=ia.value; paintImportAcct(); save(); }); }
 ['a-firm','a-prod','a-size'].forEach(id=>{
   const e=document.getElementById(id); if(e) e.addEventListener('change',paintCatalogSelects);
 });
