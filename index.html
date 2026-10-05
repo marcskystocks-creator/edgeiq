@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.0.3</title>
+<title>EDGEIQ — Journal v5.1.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.0.3</div>
+    <div class="chip" title="build version">v5.1.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -702,8 +702,8 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
   </div>
 
   <div class="card">
-    <div class="card-h"><div class="card-t">FULL EXPORT</div><div class="card-n">all 31 columns · archive and analysis</div></div>
-    <div class="help" style="margin-top:0">Everything the journal holds — 40 columns, including the fields the Excel sheet has no home for: time_out, hold_min, setup, trigger, location, f2_at_entry, stop_pts, risk_usd, risk_pct_limit, exit_type, open_before, day_ceiling, mae_pts, mfe_pts, ran_on_pts, points, r_multiple, mae_in_r, stop_headroom, capture_pct, account. <b style="color:var(--y1)">The account rides here and not in A–S</b> — the Excel sheet's columns are frozen, so everything added after v3 lives in this export. <b>Do not paste this into FUTURES LOG at A5.</b> Keep it alongside the workbook, or paste it into a new blank sheet.</div>
+    <div class="card-h"><div class="card-t">FULL EXPORT</div><div class="card-n">all 58 columns · archive and analysis</div></div>
+    <div class="help" style="margin-top:0">Everything the journal holds — 58 columns, including the fields the Excel sheet has no home for: time_out, hold_min, setup, trigger, location, f2_at_entry, stop_pts, risk_usd, risk_pct_limit, exit_type, open_before, day_ceiling, mae_pts, mfe_pts, ran_on_pts, points, r_multiple, mae_in_r, stop_headroom, capture_pct, account. <b style="color:var(--y1)">The account rides here and not in A–S</b> — the Excel sheet's columns are frozen, so everything added after v3 lives in this export. <b>Do not paste this into FUTURES LOG at A5.</b> Keep it alongside the workbook, or paste it into a new blank sheet.</div>
     <div class="btn-row">
       <button class="btn acc" onclick="exportFull()">DOWNLOAD FULL CSV</button>
       <button class="btn sec" onclick="copyFull()">COPY FULL FOR A BLANK SHEET</button>
@@ -1666,8 +1666,14 @@ function paintQty(){
      hazard. The firm's real maximum is still enforced in the flags. */
   const A=formAcct();
   const top=Math.min(60,Math.max(A.CEILING.EXPANDING_3+4,10,cur));
-  // A new trade defaults to the cap as guidance. An edit keeps what was stored.
-  const want=(EDIT_IX>=0)?cur:Math.min(cur,Math.max(cap,1));
+  /* [v5.1.0] NEVER move a quantity the user chose. v5.0.x clamped it to the
+     cap on every repaint — and preflight() repaints on a 20-second timer, on a
+     stop edit, and on an account switch. Pick 5, type a stop, and the field
+     silently read 1, with no warning and no flag: the oversize became
+     unrecordable rather than recorded and flagged. That inverts the whole
+     point. The cap is shown on every option and the field turns red when the
+     selection is over it; it is not enforced by rewriting what you typed. */
+  const want=cur;
   /* At a cap of 0 every size is over the cap, so "over cap of 0" on all ten
      rows says nothing. Name the real state instead: no trade is permitted, and
      any number picked is a logged violation. */
@@ -1801,7 +1807,12 @@ function preflight(){
     wn.push('Lockout cleared at '+fmtMins(lk.end)+' — 6/6 and '+A.BASE_CONTRACTS+' contract only until you get a win');
   }
   if(net<=-A.DAILY_LOSS_LIMIT) v.push('Session stop of $'+A.DAILY_LOSS_LIMIT+' reached on '+A.LABEL+' — done on this account');
-  if(d.trades.length>=A.MAX_TRADES) v.push(A.MAX_TRADES+'-trade cap reached');
+  /* [v5.1.0] Count POSITIONS, as analyze() does. Scaling out of one entry in
+     three pieces is one decision; counting parcels let a day of ten scaled
+     positions hit a live "30-trade cap reached" veto with not one OVER 30
+     TRADES flag anywhere in the log — the screen and the record disagreeing
+     about the same rule. */
+  if(positionsOf(d.trades||[]).length>=A.MAX_TRADES) v.push(A.MAX_TRADES+'-trade cap reached');
   if(cap===0&&!v.length) v.push('Size cap is 0 at this Panel P score — no trade permitted');
 
   if(!A.VERIFIED) wn.push(A.LABEL+' is UNVERIFIED — every number below is a catalog preset, not something you have checked against the dashboard');
@@ -1920,8 +1931,13 @@ function render(){
     if(ia){ const keep=ia.value; ia.innerHTML=opts;
             ia.value=(keep&&DB.accounts[keep])?keep:(DB.importAcct&&DB.accounts[DB.importAcct]?DB.importAcct:(DB.currentAcct||DEFAULT_ACCT));
             paintImportAcct(); } }
+  /* [v5.1.0] Only this account's tags. The list used to offer every tag on the
+     day, and both importers number from P1 inside their own file — so picking
+     "P1" on one account welded the new trade onto a position on the OTHER one,
+     hours earlier. */
   { const gl=document.getElementById('grplist');
-    if(gl){ const tags=Array.from(new Set((d.trades||[]).map(x=>x.grp).filter(Boolean)));
+    if(gl){ const ga=(document.getElementById('t-acct')||{}).value||d.acct;
+      const tags=Array.from(new Set((d.trades||[]).filter(x=>acctIdOf(x,d)===ga).map(x=>x.grp).filter(Boolean)));
       gl.innerHTML=tags.map(a=>'<option value="'+String(a).replace(/"/g,'&quot;')+'"></option>').join(''); } }
   const ac=document.getElementById('c-acct');
   { const nA=Object.keys(d.byAcct||{}).length;
@@ -1974,7 +1990,8 @@ function render(){
     document.getElementById('r-pnl').className='rail '+
       ((anyOver||net<=-combined)?'bad':net<0?'warn':net>0?'good':''); }
   document.getElementById('v-trades').textContent=d.trades.length;
-  document.getElementById('r-trades').className='rail '+(d.trades.length>=RULES.MAX_TRADES?'bad':d.trades.length>=20?'warn':'');
+  { const np=positionsOf(d.trades||[]).length;
+    document.getElementById('r-trades').className='rail '+(np>=RULES.MAX_TRADES?'bad':np>=20?'warn':''); }
   paintLock();
   { const ci=carryInStreak(VIEW);
     document.getElementById('v-streak').textContent=streak;
@@ -2118,9 +2135,15 @@ function renderLog(){
   const lr=document.getElementById('logrows');
   lr.innerHTML=all.length?all.map(k=>{
     const d=DB.days[k];
-    const net=d.trades.reduce((s,x)=>s+(+x.pnl||0),0);
+    /* [v5.1.0] This column is labelled NET and was summing GROSS — it never
+       subtracted a cent of commission, on any day. 5 Oct read $152.00 against
+       a true net of $133.42. */
+    const net=dayNet(d);
     const v=d.hardViol||0;
-    const pk=d.peakPos||0, ce=ceilingFor(d);
+    /* [v5.1.0] ...and the ceiling beside it was computed against whichever
+       account happened to be selected. Same row, same day, different number
+       depending on a dropdown. Resolve the DAY's account. */
+    const pk=d.peakPos||0, ce=ceilingFor(d,resolveAcct(d.acct||DB.currentAcct||DEFAULT_ACCT));
     return '<div class="ltr'+(k===VIEW?' cur':'')+'" onclick="openDay(\''+k+'\')">'
       +'<span>'+k+'</span><span class="thin">'+(idx[k]||'·')+'</span><span>'+d.trades.length+'</span>'
       +'<span class="'+(net<0?'loss':net>0?'win':'be')+'">'+money(net)+'</span>'
@@ -2193,7 +2216,13 @@ function allTrades(){
   Object.keys(DB.days).sort().forEach(k=>DB.days[k].trades.forEach(t=>{
     const id=acctIdOf(t,DB.days[k]);
     if(!inScope(id)) return;
-    o.push(Object.assign({date:k,grade:DB.days[k].grade},t,{acct:acctLabel(id),acctId:id}));
+    /* [v5.1.0] Keep `acct` as the ACCOUNT ID. v5.0.x overwrote it with the
+       display label, so feeFor() looked up DB.accounts['Lightning 100K'],
+       found nothing, and silently priced every trade on the BREAKDOWN tab at
+       the CURRENT account's commission. The headline net was wrong and moved
+       when the account selector moved — figures changing when nothing had
+       happened. The label gets its own field. */
+    o.push(Object.assign({date:k,grade:DB.days[k].grade},t,{acctId:id,acctLab:acctLabel(id)}));
   }));
   return o;
 }
@@ -2519,9 +2548,13 @@ function renderStats(){
      that difference is about the money on the line, not about the market. */
   const accG={};
   T.forEach(t=>{
-    const k=t.acct||'not named';
+    /* [v5.1.0] Key on the label field, not on `acct` — which is the account
+       ID again. And sum NET, as BY FIRM does: the two blocks sat next to each
+       other showing gross against net through the same money() formatter, with
+       nothing on screen saying which was which. */
+    const k=t.acctLab||acctLabel(t.acctId)||'not named';
     if(!accG[k]) accG[k]={n:0,pnl:0,hard:0,qty:0,days:{}};
-    accG[k].n++; accG[k].pnl+=(+t.pnl||0); accG[k].hard+=hardCount(t); accG[k].qty+=(+t.qty||0);
+    accG[k].n++; accG[k].pnl+=netOf(t); accG[k].hard+=hardCount(t); accG[k].qty+=(+t.qty||0);
     accG[k].days[t.date]=1;
   });
   bdStat('bd-acct',Object.keys(accG).sort((a,b)=>accG[b].n-accG[a].n).map(k=>{
@@ -2673,10 +2706,15 @@ function delAccount(id){
   if(DB.currentAcct===id) DB.currentAcct=Object.keys(DB.accounts)[0]||DEFAULT_ACCT;
   save();
 }
+/* [v5.1.0] Changing an account's rules changes what every trade on it means,
+   and d.byAcct is a cache written only by recompute(). Without this the SESSION
+   rail moved while the per-account split under it did not, and the FULL export
+   shipped commission_usd on the new rate beside account_day_net on the old. */
+function recomputeAll(){ Object.keys(DB.days||{}).forEach(k=>recompute(DB.days[k])); }
 function setAcctField(id,f,v){
   const a=DB.accounts[id]; if(!a) return;
   a[f]=(v===''?null:(f==='status'?v:+v));
-  save();
+  syncCFG(); recomputeAll(); save();
 }
 /* Inline edit on the account card. `onchange` rather than `oninput` so the
    re-render on save does not yank the field out from under the keyboard
@@ -2684,7 +2722,7 @@ function setAcctField(id,f,v){
 function setAcctNum(id,f,v){
   const a=DB.accounts[id]; if(!a) return;
   a[f]=(String(v).trim()===''?0:+v);
-  save();
+  syncCFG(); recomputeAll(); save();
 }
 
 function renderAccounts(){
@@ -2866,8 +2904,16 @@ function addTrade(override){
   };
   if(t.res==='LOSS'&&t.pnl>0) t.pnl=-t.pnl;
   if(EDIT_IX>=0&&d.trades[EDIT_IX]){
-    t.imported=!!d.trades[EDIT_IX].imported;          // an edited import is still an import
-    t.override=!!override||!!d.trades[EDIT_IX].override;
+    const old=d.trades[EDIT_IX];
+    /* [v5.1.0] addTrade() rebuilds the row from the form, and inPx/outPx are
+       not form fields — so editing an imported trade threw away its fill
+       prices. Peak open risk then fell back from the exact stop-level walk to
+       an estimate that "can only overstate", and the app tells you to tap
+       every imported row to complete it. Carry them through. */
+    if(old.inPx!=null)  t.inPx=old.inPx;
+    if(old.outPx!=null) t.outPx=old.outPx;
+    t.imported=!!old.imported;                        // an edited import is still an import
+    t.override=!!override||!!old.override;
     d.trades[EDIT_IX]=t;
     EDIT_IX=-1;
   }else{
@@ -2958,7 +3004,7 @@ function buildRows(wide){
       out.push(wide?base.concat([
         (t.outMins!=null?fmtMins(t.outMins):''),(t.hold!=null?t.hold:''),t.setup||'',t.trig||'',t.loc||'',t.f2||'',
         (+t.stopPts||0),(+t.risk||0).toFixed(2),(+t.riskPct||0).toFixed(1),t.exit||'',
-        (t.openBefore||0),(t.ceil!=null?t.ceil:ceilingFor(d)),
+        (t.openBefore||0),(t.ceil!=null?t.ceil:ceilingFor(d,A_of(t,d))),
         (+t.mae||0),(+t.mfe||0),(+t.postRun||0),
         (t.pts!=null?t.pts.toFixed(2):''),(t.rMult!=null?t.rMult.toFixed(3):''),
         (t.maeR!=null?t.maeR.toFixed(3):''),(t.headroom!=null?t.headroom.toFixed(2):''),
@@ -3180,7 +3226,17 @@ function parseBrokerCSV(text){
     if(!dir) continue;
 
     if(type.indexOf('STOP')>=0&&isFinite(stopPx)){
-      stops.push({date:stamp.date,sec:stamp.sec,prod:prod,dir:dir,px:stopPx});
+      /* [v5.1.0] Match a protective stop on when it was PLACED, not when it
+         filled. v5.0.x used the fill stamp, so a stop that actually triggered
+         was timestamped at the exit — minutes after the entry — and was thrown
+         out by the 180-second window. A stop that never triggered was stamped
+         at bracket submission, BEFORE the entry limit filled, and was thrown
+         out as "placed before this entry". Between them that rejected every
+         stop in the file: all ten rows of 5 Oct imported at stopPts 0, which
+         meant no risk, no R, and expectancy() returning null for the whole day
+         — the one number this journal exists to produce. */
+      const placed=parseFillStamp(pick(r,map,['Timestamp','CreatedAt']))||stamp;
+      stops.push({date:placed.date,sec:placed.sec,prod:prod,dir:dir,px:stopPx});
     }
     /* A populated fill timestamp is itself proof of a fill. TradingView writes
        "Filled" into Status; other platforms write a code, or nothing. Trusting
@@ -3253,17 +3309,24 @@ function emitTrades(byDay,stops,open){
       /* Initial stop, if one is recoverable. Only a stop placed on the LOSING
          side of the entry is risk: a stop above a long entry is a trail and
          tells you nothing about what was risked. */
-      let stopPts=0;
+      /* [v5.1.0] A bracket is submitted with the entry, so its stop may be
+         placed up to several minutes BEFORE a resting limit fills, and a
+         protective stop added by hand lands shortly after. Accept a window on
+         both sides of the entry, require the stop to sit on the losing side,
+         and take the candidate placed CLOSEST in time to the entry rather than
+         the widest one — with several entries in a session the widest is
+         routinely another trade's bracket. */
+      let stopPts=0, best=null;
       stops.forEach(s=>{
         if(s.date!==dt||s.prod!==e.prod) return;
         if(s.dir===e.dir) return;                        // must be the closing side
-        if(s.sec < e.sec-5) return;                      // placed before this entry
-        if(e.outSec!=null && s.sec > e.outSec) return;            // placed after the exit
-        if(s.sec-e.sec>180) return;                      // protective stops go on at once
+        if(s.sec < e.sec-600) return;                    // older than the bracket could be
+        if(s.sec > e.sec+180) return;                    // protective stops go on at once
+        if(e.outSec!=null && s.sec > e.outSec) return;   // placed after the exit
         const adverse=e.dir>0?(s.px<e.px):(s.px>e.px);
-        if(!adverse) return;
-        const d=Math.abs(e.px-s.px);
-        if(d>stopPts) stopPts=d;
+        if(!adverse) return;                             // below a long / above a short
+        const gap=Math.abs(s.sec-e.sec);
+        if(best===null||gap<best){ best=gap; stopPts=Math.abs(e.px-s.px); }
       });
 
       let exitType='';
@@ -3324,7 +3387,7 @@ function doImport(inp){
     if(!res.trades.length){ flashImport('No completed round trips in that file — every fill is still open.',true); return; }
 
     const dates=Array.from(new Set(res.trades.map(t=>t.date))).sort();
-    let wiped=0;
+    let wiped=0, carried=0;
     dates.forEach(dt=>{
       if(!DB.days[dt]) DB.days[dt]=blankDay(dt);
       const d=DB.days[dt];
@@ -3335,12 +3398,38 @@ function doImport(inp){
          imported history and nothing else. Hand-typed rows are still untouched
          on every account. */
       const before=(d.trades||[]).length;
+      /* [v5.1.0] Keep the judgement half. The screen promises that anything
+         typed by hand is left alone, and for whole ROWS that was true — but a
+         re-import rebuilt every imported row from the file, so Panel P, F2,
+         setup, trigger, location, the stop, the excursions and the target were
+         all silently destroyed. Those are exactly the fields the file cannot
+         supply and the analytics cannot do without, and the app instructs you
+         to tap each row and fill them in. A row is matched back by account,
+         entry minute, direction and size; the broker facts are refreshed from
+         the file, the judgement is carried forward. */
+      const KEEP=['conf','f2','loc','setup','trig','stopPts','noStop','tp','tact',
+                  'mae','mfe','postRun','exit','grp','override'];
+      const held={};
+      (d.trades||[]).forEach(t=>{
+        if(!(t.imported&&acctIdOf(t,d)===target)) return;
+        const k=t.mins+'|'+t.dir+'|'+t.qty+'|'+(t.ins||'MNQ');
+        const kept={}; let any=false;
+        KEEP.forEach(f=>{
+          const v=t[f];
+          if(v!==undefined&&v!==''&&v!==0&&v!==false&&v!==null){ kept[f]=v; any=true; }
+        });
+        if(t.note&&t.note.indexOf('imported \u00b7 ')!==0){ kept.note=t.note; any=true; }
+        if(any&&held[k]===undefined) held[k]=kept;
+      });
       d.trades=(d.trades||[]).filter(t=>!(t.imported&&acctIdOf(t,d)===target));
       wiped+=before-d.trades.length;
       res.trades.filter(t=>t.date===dt).forEach(t=>{
         const c=Object.assign({},t); delete c.date;
         c.acct=target;                       // stamped, never inferred later
         c.afterDone=!!d.done;
+        const k=c.mins+'|'+c.dir+'|'+c.qty+'|'+(c.ins||'MNQ');
+        if(held[k]){ carried++; Object.keys(held[k]).forEach(f=>{
+          if(f==='note') c.note=c.note+' \u00b7 '+held[k].note; else c[f]=held[k][f]; }); }
         d.trades.push(c);
       });
       recompute(d);
@@ -3352,6 +3441,7 @@ function doImport(inp){
       +' day'+(dates.length>1?'s':'')+': '+dates.join(', ')+'. ';
     msg+=wiped?('Replaced '+wiped+' earlier imported row'+(wiped>1?'s':'')+' on that account. ')
               :'Nothing was replaced. ';
+    if(carried) msg+='Carried your typed fields back onto '+carried+' row'+(carried>1?'s':'')+'. ';
     msg+='Other accounts and every hand-typed trade were left alone. Now open each day and fill in Panel P, F2, setup, trigger and location.';
     if(res.open.length) msg+=' '+res.open.length+' entr'+(res.open.length>1?'ies were':'y was')+' still open at the end of the file and could not be paired.';
     if(res.matched) msg+=' This was a matched-trade file, so it carries no stop prices — every row needs its stop typed in.';
@@ -3404,9 +3494,23 @@ function dl(txt,type,name){
   a.href=URL.createObjectURL(new Blob([txt],{type})); a.download=name; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),3000);
 }
+/* [v5.1.0] v5.0.x did DB={days:{},lastBackup:...} — which also deleted the
+   account registry, every per-account edit (session stop, commission, balance,
+   cost, withdrawn, verified, pdll), and `seededIds`. Three consequences, none
+   of them in the dialog text: render() then threw on the missing registry and
+   aborted halfway, leaving the deleted data still on screen so it looked like
+   nothing happened; the next migrate() re-added the seeds, resurrecting any
+   account deliberately removed; and the confirm only ever promised to delete
+   "every logged day". Days are days. The registry survives. */
 function wipe(){
-  if(!confirm('This deletes every logged day. There is no undo. Save a backup first if you need the data.')) return;
-  DB={days:{},lastBackup:DB.lastBackup}; VIEW=etDate(); save();
+  const n=Object.keys(DB.days||{}).length;
+  if(!confirm('This deletes every logged day \u2014 '+n+' of them \u2014 and there is no undo.\n\n'
+    +'Your accounts, their settings and your backups are NOT touched.\n\n'
+    +'Save a backup first if you need the trades.')) return;
+  DB.days={};
+  VIEW=etDate(); EDIT_IX=-1;
+  migrate();            // rebuild the day shell and re-resolve the registry
+  save();
 }
 
 /* ---------- PERSIST + MIGRATE ---------- */
