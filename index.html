@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.1.0</title>
+<title>EDGEIQ — Journal v5.2.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.1.0</div>
+    <div class="chip" title="build version">v5.2.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -221,9 +221,9 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         <select class="sel" id="f-panelf">
           <option value="">not set</option>
           <option value="EXPANDING">EXPANDING — full pass</option>
-          <option value="CONTRACTING">CONTRACTING — no price lie (5/6 min, 75%)</option>
-          <option value="PRICE_LIE">CONTRACTING + PRICE LIE — hard veto</option>
+          <option value="CONTRACTING">CONTRACTING — 5/6 min, 75% size</option>
         </select>
+        <label class="nostop" style="margin-top:5px"><input type="checkbox" id="f-pricelie"/> <b style="color:var(--r1)">PRICE LIE</b> — hard veto, ceiling 0</label>
       </div>
       <div>
         <label class="lbl" for="f-vix">VIX REGIME</label>
@@ -401,7 +401,9 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
           <option value="">not set</option>
           <optgroup label="THE SYSTEM STOPPED YOU">
             <option>Below minimum confluence</option>
-            <option>Panel F veto / PRICE LIE</option>
+            <option>Panel F — PRICE LIE (hard veto)</option>
+            <option>Panel F — side conflict / phase disagrees</option>
+            <option>Panel F — not locked or blind</option>
             <option>Blocked window</option>
             <option>Size cap was 0</option>
             <option>Lockout active</option>
@@ -990,7 +992,11 @@ function lastAccount(){
    account that governs a trade's ceiling, buffer and flags is the one stored on
    the trade itself, so switching accounts mid-session is a first-class action
    and the running log spans all of them. */
-function blankDay(d){return {date:d,panelF:'',vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
+/* [v5.2.0 / DEFECT 57] The veto is its own fact. Reads the new flag and the
+   legacy PRICE_LIE enum, so a store that has not migrated still vetoes. */
+function isPriceLie(d){ return !!(d && (d.priceLie || d.panelF==='PRICE_LIE')); }
+function pfLabel(d){ return (d.panelF||'not set')+(isPriceLie(d)?' + PRICE LIE':''); }
+function blankDay(d){return {date:d,panelF:'',priceLie:false,vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -1052,7 +1058,7 @@ function windowAt(t){ return W.find(w=>t>=w.a&&t<w.b)||W[W.length-1]; }
    and only its height moves with the buffer. */
 function ceilingFor(d,A){
   A=A||CFG;
-  if(d.panelF==='PRICE_LIE') return A.CEILING.PRICE_LIE;
+  if(isPriceLie(d)) return A.CEILING.PRICE_LIE;
   if(!d.panelF)              return A.CEILING.NO_PANEL_F;
   const esg=(d.esg||[]).filter(Boolean).length;
   if(esg<=1)                 return A.CEILING.ESG_LOW;
@@ -1090,7 +1096,7 @@ function ratchetedCeiling(d,prior,A){
 function ceilingReason(d,prior,A){
   A=A||CFG;
   if(prior&&prior.some(p=>hardCount(p)>0)) return 'ratcheted to base by an earlier hard violation — it cannot be raised again today';
-  if(d.panelF==='PRICE_LIE') return 'PRICE LIE is a hard veto — no size is permitted at all';
+  if(isPriceLie(d)) return 'PRICE LIE is a hard veto — no size is permitted at all';
   if(!d.panelF)              return 'Panel F is not set — until it is, the ceiling stays at base';
   const esg=(d.esg||[]).filter(Boolean).length;
   if(esg<=1)                 return 'emotional state is '+esg+'/3 — two or more is required before the ladder opens';
@@ -1251,7 +1257,7 @@ function analyze(t,prior,d,openBefore){
   if(t.mins>=960) f.push('AFTER HOURS');
 
   // ── PANEL F / CONFLUENCE
-  if(d.panelF==='PRICE_LIE') f.push('PRICE LIE VETO');
+  if(isPriceLie(d)) f.push('PRICE LIE VETO');
   if(!d.panelF) f.push('PANEL F NOT LOCKED');
   if(d.panelF==='CONTRACTING'&&['4/6','3/6','2/6 or less'].includes(t.conf)) f.push('CONTRACTING NEEDS 5/6');
   if(['3/6','2/6 or less'].includes(t.conf)) f.push('BELOW 4/6 MIN');
@@ -1796,7 +1802,7 @@ function preflight(){
   /* [v5.0.0] You said you were finished. Nothing here can stop an order, but the
      journal will not quietly pretend the decision was never made. */
   if(d.done) v.push('YOU CALLED THE DAY DONE — on every account. Nothing after this was part of the plan.');
-  if(d.panelF==='PRICE_LIE') v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
+  if(isPriceLie(d)) v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
   if(!w.ok) v.push(w.n+' — no entries in this window');
   const lk=lockState();
   if(lk&&lk.active){
@@ -1838,7 +1844,7 @@ function preflight(){
 
   if(v.length) el.innerHTML='<div class="pf veto"><b>VETO ACTIVE</b><br>'+v.map(x=>'· '+x).join('<br>')+'</div>';
   else if(wn.length) el.innerHTML='<div class="pf warn">'+wn.map(x=>'· '+x).join('<br>')+'</div>';
-  else el.innerHTML='<div class="pf ok">'+w.n+' open · '+A.LABEL+' · Panel F '+d.panelF+' · emotional state 3/3 · no active vetoes</div>';
+  else el.innerHTML='<div class="pf ok">'+w.n+' open · '+A.LABEL+' · Panel F '+pfLabel(d)+' · emotional state 3/3 · no active vetoes</div>';
 
   const why=[];
   why.push(A.LABEL);
@@ -1909,6 +1915,7 @@ function render(){
   kz.textContent=w.n; kz.className='chip '+(w.ok?'kz-live':'kz-block');
 
   document.getElementById('f-panelf').value=d.panelF||'';
+  document.getElementById('f-pricelie').checked=isPriceLie(d);
   document.getElementById('f-vix').value=d.vix||'';
   /* [v5.0.0] Two account selectors, and they do different jobs. f-acct is the
      DAY's default — what a new trade starts on. t-acct is what THIS trade is
@@ -2993,14 +3000,14 @@ function buildRows(wide){
     n++; const esg=(d.esg||[]).filter(Boolean).length;
     const sessNote=[d.fix,d.note].filter(Boolean).join(' — ');
     if(!d.trades.length){
-      const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',d.panelF,d.vix,esg,d.grade,sessNote,''];
+      const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',pfLabel(d),d.vix,esg,d.grade,sessNote,''];
       out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d,resolveAcct(d.acct)),'','','','','','','','',acctLabel(d.acct),
         '','','','','','','','','','','',carryInStreak(k),(d.excl?'YES':''),
         d.acct||'',resolveAcct(d.acct).DRAWDOWN_BUFFER,resolveAcct(d.acct).DAILY_LOSS_LIMIT,'0.00','']):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
-        t.streakBefore,(t.flags||[]).length,(t.flags||[]).join(' | '),d.panelF,d.vix,esg,d.grade,sessNote,t.note];
+        t.streakBefore,(t.flags||[]).length,(t.flags||[]).join(' | '),pfLabel(d),d.vix,esg,d.grade,sessNote,t.note];
       out.push(wide?base.concat([
         (t.outMins!=null?fmtMins(t.outMins):''),(t.hold!=null?t.hold:''),t.setup||'',t.trig||'',t.loc||'',t.f2||'',
         (+t.stopPts||0),(+t.risk||0).toFixed(2),(+t.riskPct||0).toFixed(1),t.exit||'',
@@ -3542,6 +3549,25 @@ function migrate(){
     if(d.fix===undefined) d.fix='';
     if(d.note===undefined) d.note='';
     if(d.done===undefined) d.done=false;
+    /* [v5.2.0] DEFECT 57 — the old PRICE_LIE enum value meant CONTRACTING
+       *and* a price lie. Split it back into the two independent facts it
+       always was. Lossless: nothing is guessed, the label said both. */
+    if(d.priceLie===undefined) d.priceLie=false;
+    if(d.panelF==='PRICE_LIE'){ d.panelF='CONTRACTING'; d.priceLie=true; }
+    /* [v5.2.0] DEFECT 56 — "Panel F veto / PRICE LIE" was ONE option covering
+       two different rules: a PRICE LIE hard veto, and a side conflict where
+       the phase disagrees with the setup direction. BREAKDOWN groups passes by
+       this string precisely so that "a rule that keeps blocking winners and a
+       rule that keeps saving you look different" — its own comment. Collapsed
+       into one bar, neither can be measured.
+       The old value is genuinely ambiguous, so this does NOT guess which of
+       the new reasons it meant. It renames it to something that can never be
+       mistaken for a precise category, and leaves the row for you to correct
+       by hand. An unclassified value must look unclassified. */
+    (d.passes||[]).forEach(x=>{
+      if(x.why==='Panel F veto / PRICE LIE')
+        x.why='Panel F veto (legacy — reason not separated)';
+    });
     /* v4.x kept a free-text account NAME on the day. Map it onto a registry id
        where one matches by id, label or account number; otherwise fall back to
        the current account. Nothing is discarded — the old string is kept in
@@ -3594,6 +3620,14 @@ async function load(){
   migrate();
   render();
 }
+
+document.getElementById('f-pricelie').addEventListener('change',e=>{
+  const d=day();
+  d.priceLie=e.target.checked;
+  /* Clear the legacy enum so the two can never disagree. */
+  if(d.panelF==='PRICE_LIE') d.panelF='CONTRACTING';
+  recompute(d); save();
+});
 
 ['f-panelf','f-vix','f-acct'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
   const d=day();
