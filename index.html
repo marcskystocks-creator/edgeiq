@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.2.0</title>
+<title>EDGEIQ — Journal v5.3.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.2.0</div>
+    <div class="chip" title="build version">v5.3.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -215,15 +215,33 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       </div>
     </div>
 
-    <div class="grid g3" style="margin-bottom:9px">
+    <div class="grid g2" style="margin-bottom:9px">
       <div>
-        <label class="lbl" for="f-panelf">PANEL F — LOCKED 9:45</label>
+        <label class="lbl" for="f-panelf">PANEL F — STATE (locked 9:45)</label>
         <select class="sel" id="f-panelf">
           <option value="">not set</option>
-          <option value="EXPANDING">EXPANDING — full pass</option>
-          <option value="CONTRACTING">CONTRACTING — 5/6 min, 75% size</option>
+          <option value="EXPANDING">EXPANDING \u25b2</option>
+          <option value="CONTRACTING">CONTRACTING \u25bc</option>
+          <option value="STALLED">STALLED \u25a0</option>
         </select>
         <label class="nostop" style="margin-top:5px"><input type="checkbox" id="f-pricelie"/> <b style="color:var(--r1)">PRICE LIE</b> — hard veto, ceiling 0</label>
+      </div>
+      <div>
+        <label class="lbl" for="f-phasef">PANEL F — PHASE</label>
+        <select class="sel" id="f-phasef">
+          <option value="">not set</option>
+          <option value="BULL">BULL \u25b2</option>
+          <option value="BEAR">BEAR \u25bc</option>
+          <option value="NEUTRAL">NEUTRAL \u25a0</option>
+        </select>
+        <label class="lbl" for="f-momf" style="margin-top:5px">PANEL F — MOMENTUM <b style="color:var(--y1)">(never locked)</b></label>
+        <select class="sel" id="f-momf">
+          <option value="">not set</option>
+          <option value="RISING">RISING</option>
+          <option value="FADING">FADING</option>
+          <option value="RECOVERING">RECOVERING</option>
+          <option value="FALLING">FALLING</option>
+        </select>
       </div>
       <div>
         <label class="lbl" for="f-vix">VIX REGIME</label>
@@ -236,6 +254,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         <select class="sel" id="f-acct"></select>
       </div>
     </div>
+    <div id="cardbox" class="pf" style="margin-bottom:9px">\u2014</div>
 
     <label class="lbl">EMOTIONAL STATE — answer before the first trade</label>
     <div class="tg" id="e0" onclick="tog(0)"><div class="box"></div><span>I slept enough and I am not rushing.</span></div>
@@ -994,9 +1013,140 @@ function lastAccount(){
    and the running log spans all of them. */
 /* [v5.2.0 / DEFECT 57] The veto is its own fact. Reads the new flag and the
    legacy PRICE_LIE enum, so a store that has not migrated still vetoes. */
+/* ================= [v5.3.0 / DEFECT 59] THE CARD MATRIX =================
+   Until v5.3.0 this application branched on Panel F's STATE and on PRICE LIE,
+   and on nothing else. PHASE and MOMENTUM -- the two readings that actually
+   SELECT the governing card -- appeared nowhere in the file.
+
+   On 9 October 2026 Panel F read EXPANDING / BEAR / FALLING. That is Card 04A,
+   NO TRADE in either direction. This app computed a day ceiling of SIX. It
+   failed OPEN, which is the one direction Standing Rule 8 forbids.
+
+   The second consequence is quieter and worse: no day in the journal's history
+   can be mapped back to a card, so every ceiling and every OVER SIZE CAP flag
+   ever computed here was blind to the rule that governed the session.
+
+   Source: EDGEIQ_Panel_F_State_Playbook_Cards_v2.5.md, FULL COVERAGE MATRIX.
+   Thirty-six reachable cells. Ten tradeable. Eight mechanically executable.
+
+   SIZE, and why it is a word and not a number:
+     full  -- the ESG ladder applies in full. Card 01 only.
+     base  -- deck: "75%. At 1-contract base size that means base only, no
+              scaling." Capped at BASE_CONTRACTS however high the ladder sits.
+     none  -- deck: "50% -- not mechanically executable at 1-contract base.
+              Watch state." Cards 03 and 04. Ceiling 0.
+   That reproduces the deck's own count: ten tradeable, eight executable, and
+   only Card 01 at full size.                                              */
+const CARD_MATRIX={
+  'EXPANDING|BULL|RISING'      :{card:'01' ,side:'LONG'      ,min:4,size:'full',depth:'0.618'      ,tgt:'TP1-TP3'},
+  'EXPANDING|BULL|FADING'      :{card:'02' ,side:'LONG'      ,min:4,size:'base',depth:'0.705-0.786',tgt:'TP1-TP2'},
+  'EXPANDING|BULL|RECOVERING'  :{card:'02A',side:'LONG'      ,min:5,size:'base',depth:'0.705-0.786',tgt:'TP1'},
+  'EXPANDING|BULL|FALLING'     :{card:'02B',side:'NO TRADE'  ,min:0,size:'none',depth:''           ,tgt:''},
+  'EXPANDING|BEAR|RISING'      :{card:'03A',side:'LONG \u00b7 AM only',min:5,size:'base',depth:'0.705',tgt:'TP1'},
+  'EXPANDING|BEAR|RECOVERING'  :{card:'03' ,side:'LONG \u00b7 low conviction',min:5,size:'none',depth:'0.705',tgt:'TP1'},
+  'EXPANDING|BEAR|FADING'      :{card:'04' ,side:'SHORT \u00b7 premium only',min:6,size:'none',depth:'0.705',tgt:'TP1'},
+  'EXPANDING|BEAR|FALLING'     :{card:'04A',side:'NO TRADE'  ,min:0,size:'none',depth:''           ,tgt:''},
+  'CONTRACTING|BULL|RISING'    :{card:'05' ,side:'LONG \u00b7 restricted',min:5,size:'base',depth:'0.705-0.786',tgt:'TP1'},
+  'CONTRACTING|BULL|FADING'    :{card:'06' ,side:'NO TRADE'  ,min:0,size:'none',depth:''           ,tgt:''},
+  'CONTRACTING|BULL|RECOVERING':{card:'05A',side:'NO TRADE'  ,min:0,size:'none',depth:''           ,tgt:''},
+  'CONTRACTING|BULL|FALLING'   :{card:'06A',side:'NO TRADE \u2014 FLATTEN',min:0,size:'none',depth:'',tgt:''},
+  'CONTRACTING|BEAR|RISING'    :{card:'07A',side:'NO TRADE'  ,min:0,size:'none',depth:''           ,tgt:''},
+  'CONTRACTING|BEAR|RECOVERING':{card:'07' ,side:'SHORT'     ,min:5,size:'base',depth:'0.705'      ,tgt:'TP1-TP2'},
+  'CONTRACTING|BEAR|FADING'    :{card:'08A',side:'SHORT'     ,min:5,size:'base',depth:'0.705'      ,tgt:'TP1-TP2'},
+  'CONTRACTING|BEAR|FALLING'   :{card:'08' ,side:'SHORT'     ,min:5,size:'base',depth:'0.705'      ,tgt:'TP1-TP3'}
+};
+/* Card 14 absorbs all eight PHASE NEUTRAL cells; Card 09 all twelve STALLED
+   cells. Both are NO TRADE, so they are rules rather than matrix rows. */
+const CARD_14={card:'14',side:'NO TRADE',min:0,size:'none',depth:'',tgt:'',
+               why:'PHASE NEUTRAL \u2014 no directional context'};
+const CARD_09={card:'09',side:'NO TRADE',min:0,size:'none',depth:'',tgt:'',
+               why:'STALLED \u2014 do not enter into consolidation'};
+
+/* Panel F is complete only when all three readings are present. Two of three
+   is not a partial answer -- it selects no card at all. */
+function pfComplete(d){ return !!(d && d.panelF && d.phaseF && d.momF); }
+
+/* The governing card, or null when Panel F is incomplete. NEVER guesses. */
+function cardFor(d){
+  if(!pfComplete(d)) return null;
+  if(d.panelF==='STALLED') return CARD_09;
+  if(d.phaseF==='NEUTRAL') return CARD_14;
+  return CARD_MATRIX[d.panelF+'|'+d.phaseF+'|'+d.momF] || null;
+}
+function isNoTrade(c){ return !!(c && c.size==='none'); }
+/* [v5.3.0] Two different zeroes. Card 04A is a veto -- there is no setup.
+   Card 03 and Card 04 ARE setups; they specify 50% size, which rounds to
+   nothing at a 1-contract base, so they are WATCH states. Both give a ceiling
+   of 0 and they must never read as the same sentence: one says the market is
+   offering nothing, the other says it is offering something you cannot size. */
+function isWatchState(c){ return !!(c && c.size==='none' && c.min>0); }
+function isVeto(c){       return !!(c && c.size==='none' && c.min===0); }
+/* The minimum this card demands. 4/6 is the floor of the whole system, so an
+   unknown card asks for the system floor and not for nothing. */
+function cardMin(d){ const c=cardFor(d); return (c&&c.min)?c.min:4; }
+function cardName(d){ const c=cardFor(d); return c?('CARD '+c.card):''; }
+
+/* A day closed before v5.3.0 never recorded PHASE or MOMENTUM, and there is no
+   honest way to recover them. Such a day keeps the ceiling it was graded under
+   and is LABELLED as pre-card rather than silently re-scored -- rewriting
+   history to match a new rule would destroy the only measurement this journal
+   has. Open days get the full check. */
+function isLegacyDay(d){ return !!(d && d.closed && !pfComplete(d)); }
+
 function isPriceLie(d){ return !!(d && (d.priceLie || d.panelF==='PRICE_LIE')); }
-function pfLabel(d){ return (d.panelF||'not set')+(isPriceLie(d)?' + PRICE LIE':''); }
-function blankDay(d){return {date:d,panelF:'',priceLie:false,vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
+function pfLabel(d){
+  const bits=[d.panelF||'not set'];
+  if(d.phaseF) bits.push(d.phaseF);
+  if(d.momF)   bits.push(d.momF);
+  let s=bits.join(' / ');
+  const c=cardFor(d); if(c) s+=' \u2014 CARD '+c.card;
+  if(isPriceLie(d)) s+=' + PRICE LIE';
+  return s;
+}
+/* [v5.3.0] The card, stated on the dashboard before the first trade. A rule you
+   have to look up in a 36-row table is a rule you will approximate. */
+function paintCard(d){
+  const el=document.getElementById('cardbox'); if(!el) return;
+  if(isPriceLie(d)){
+    el.className='pf bad';
+    el.innerHTML='<b>PRICE LIE — HARD VETO</b> · no entries at any score, whatever the card says';
+    return;
+  }
+  if(isLegacyDay(d)){
+    el.className='pf';
+    el.innerHTML='<b>CARD NOT RECORDED</b> · this day was closed before v5.3.0, when only STATE was captured. Its ceiling is preserved as graded.';
+    return;
+  }
+  if(!d.panelF){ el.className='pf'; el.innerHTML='Set Panel F STATE, PHASE and MOMENTUM to select the governing card.'; return; }
+  if(!pfComplete(d)){
+    const miss=[]; if(!d.phaseF) miss.push('PHASE'); if(!d.momF) miss.push('MOMENTUM');
+    el.className='pf warn';
+    el.innerHTML='<b>PANEL F INCOMPLETE</b> · '+miss.join(' and ')+' not set. Two of three readings selects <i>no card</i> — ceiling held at base until all three are in.';
+    return;
+  }
+  const c=cardFor(d);
+  if(!c){ el.className='pf warn'; el.innerHTML='<b>NO CARD</b> covers '+d.panelF+' / '+d.phaseF+' / '+d.momF+'. Ceiling held at base.'; return; }
+  if(isWatchState(c)){
+    el.className='pf warn';
+    el.innerHTML='<b>CARD '+c.card+' — '+c.side+' · WATCH STATE</b>'+
+      ' · <span style="opacity:.8">'+d.panelF+' / '+d.phaseF+' / '+d.momF+'</span>'+
+      '<div style="margin-top:3px;font-weight:400">This card specifies <b>50% size</b>, which is zero contracts at a 1-contract base. '+
+      'The setup is real — min '+c.min+'/6, depth '+c.depth+' — and you cannot size it. Log what price does as a pass.</div>';
+    return;
+  }
+  if(isNoTrade(c)){
+    el.className='pf bad';
+    el.innerHTML='<b>CARD '+c.card+' — '+c.side+'</b>'+(c.why?' · '+c.why:'')+
+      ' · <span style="opacity:.8">'+d.panelF+' / '+d.phaseF+' / '+d.momF+'</span>'+
+      '<div style="margin-top:3px;font-weight:400">No entry is permitted in either direction. This does not move with the confluence score.</div>';
+    return;
+  }
+  el.className='pf ok';
+  el.innerHTML='<b>CARD '+c.card+' — '+c.side+'</b> · min <b>'+c.min+'/6</b> · depth '+c.depth+' · '+c.tgt+
+    ' · size '+(c.size==='full'?'full ladder':'base only, no scaling')+
+    ' · <span style="opacity:.8">'+d.panelF+' / '+d.phaseF+' / '+d.momF+'</span>';
+}
+function blankDay(d){return {date:d,panelF:'',phaseF:'',momF:'',priceLie:false,vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -1056,15 +1206,30 @@ function windowAt(t){ return W.find(w=>t>=w.a&&t<w.b)||W[W.length-1]; }
    Panel F and the emotional gate are properties of the DAY — they describe the
    market and the trader, not the venue — so the shape of the ladder is shared
    and only its height moves with the buffer. */
+/* [v5.3.0 / DEFECT 59] Tested in the order a veto beats a permission.
+   PRICE LIE, then paperwork, then the emotional gate, then THE CARD, and only
+   then the ladder. The card can lower the ladder and can never raise it --
+   momentum restricts permission and never expands it (deck, Card 02B). */
 function ceilingFor(d,A){
   A=A||CFG;
   if(isPriceLie(d)) return A.CEILING.PRICE_LIE;
   if(!d.panelF)              return A.CEILING.NO_PANEL_F;
   const esg=(d.esg||[]).filter(Boolean).length;
   if(esg<=1)                 return A.CEILING.ESG_LOW;
-  if(d.panelF==='CONTRACTING') return esg>=3?A.CEILING.CONTRACTING_3:A.CEILING.CONTRACTING_2;
-  if(d.panelF==='EXPANDING')   return esg>=3?A.CEILING.EXPANDING_3:A.CEILING.EXPANDING_2;
-  return A.BASE_CONTRACTS;
+  const ladder = (d.panelF==='CONTRACTING') ? (esg>=3?A.CEILING.CONTRACTING_3:A.CEILING.CONTRACTING_2)
+               : (d.panelF==='EXPANDING')   ? (esg>=3?A.CEILING.EXPANDING_3:A.CEILING.EXPANDING_2)
+               : A.BASE_CONTRACTS;
+  /* A day graded before v5.3.0 keeps the number it was graded under. */
+  if(isLegacyDay(d)) return ladder;
+  /* STALLED is a NO TRADE state on its own, with or without the other two. */
+  if(d.panelF==='STALLED') return 0;
+  /* Panel F half-filled selects no card. Fail closed: base, not the ladder. */
+  if(!pfComplete(d)) return Math.min(ladder,A.BASE_CONTRACTS);
+  const c=cardFor(d);
+  if(!c) return Math.min(ladder,A.BASE_CONTRACTS);
+  if(c.size==='none') return 0;
+  if(c.size==='base') return Math.min(ladder,A.BASE_CONTRACTS);
+  return ladder;
 }
 
 /* Soft flags are missing paperwork, not broken rules. They are shown, counted
@@ -1097,12 +1262,21 @@ function ceilingReason(d,prior,A){
   A=A||CFG;
   if(prior&&prior.some(p=>hardCount(p)>0)) return 'ratcheted to base by an earlier hard violation — it cannot be raised again today';
   if(isPriceLie(d)) return 'PRICE LIE is a hard veto — no size is permitted at all';
-  if(!d.panelF)              return 'Panel F is not set — until it is, the ceiling stays at base';
+  if(!d.panelF)              return 'Panel F STATE is not set — until it is, the ceiling stays at base';
   const esg=(d.esg||[]).filter(Boolean).length;
   if(esg<=1)                 return 'emotional state is '+esg+'/3 — two or more is required before the ladder opens';
-  if(d.panelF==='CONTRACTING') return esg>=3?'CONTRACTING with full emotional state':'CONTRACTING at '+esg+'/3 — the third box raises it';
-  if(d.panelF==='EXPANDING')   return esg>=3?'EXPANDING with full emotional state — the highest the ladder goes':'EXPANDING at '+esg+'/3 — the third box raises it';
-  return 'base size';
+  if(isLegacyDay(d))         return 'closed before v5.3.0 — graded on STATE and emotional state only, card never recorded';
+  if(d.panelF==='STALLED')   return 'STALLED — Card 09, no entries into consolidation at any score';
+  if(!pfComplete(d)){
+    const miss=[]; if(!d.phaseF) miss.push('PHASE'); if(!d.momF) miss.push('MOMENTUM');
+    return 'Panel F '+miss.join(' and ')+' not set — two of three selects no card, so the ceiling holds at base';
+  }
+  const c=cardFor(d);
+  if(!c) return 'no card covers this combination — held at base';
+  if(isWatchState(c)) return 'CARD '+c.card+' — '+c.side+' at 50%, which is nothing at a 1-contract base. A real setup you cannot size — watch state';
+  if(c.size==='none') return 'CARD '+c.card+' — '+c.side+(c.why?' ('+c.why+')':'')+'. No entry exists to size';
+  if(c.size==='base') return 'CARD '+c.card+' — '+c.side+' at 75%, which is base only at a 1-contract base. No scaling';
+  return 'CARD '+c.card+' — '+c.side+', the only card that permits the full ladder'+(esg>=3?'':' (emotional state '+esg+'/3 caps it lower)');
 }
 
 /* The stop decides how many contracts you can afford. A 12.5-pt stop on MNQ buys
@@ -1259,6 +1433,19 @@ function analyze(t,prior,d,openBefore){
   // ── PANEL F / CONFLUENCE
   if(isPriceLie(d)) f.push('PRICE LIE VETO');
   if(!d.panelF) f.push('PANEL F NOT LOCKED');
+  /* [v5.3.0] The governing card sets the minimum, not one global rule. */
+  if(d.panelF&&!isLegacyDay(d)&&!pfComplete(d)) f.push('PANEL F INCOMPLETE — PHASE/MOMENTUM NOT RECORDED, CARD UNKNOWN');
+  {
+    const cd=cardFor(d);
+    if(isVeto(cd))           f.push('CARD '+cd.card+' — '+cd.side+', NO ENTRY PERMITTED AT ANY SCORE');
+    else if(isWatchState(cd)) f.push('CARD '+cd.card+' IS A WATCH STATE — 50% size is 0 at a 1-contract base');
+    else if(cd){
+      const got={'6/6':6,'5/6':5,'4/6':4,'3/6':3,'2/6 or less':2}[t.conf];
+      if(got!=null&&got<cd.min) f.push('BELOW CARD '+cd.card+' MINIMUM — needs '+cd.min+'/6, had '+t.conf);
+      if(cd.side.indexOf('LONG')===0&&t.dir==='SHORT') f.push('CARD '+cd.card+' IS LONG-ONLY — took a short');
+      if(cd.side.indexOf('SHORT')===0&&t.dir==='LONG') f.push('CARD '+cd.card+' IS SHORT-ONLY — took a long');
+    }
+  }
   if(d.panelF==='CONTRACTING'&&['4/6','3/6','2/6 or less'].includes(t.conf)) f.push('CONTRACTING NEEDS 5/6');
   if(['3/6','2/6 or less'].includes(t.conf)) f.push('BELOW 4/6 MIN');
   if(esg<2&&(t.conf!=='6/6'||gqty>1)) f.push('ESG RESTRICTED');
@@ -1803,6 +1990,11 @@ function preflight(){
      journal will not quietly pretend the decision was never made. */
   if(d.done) v.push('YOU CALLED THE DAY DONE — on every account. Nothing after this was part of the plan.');
   if(isPriceLie(d)) v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
+  {
+    const cd=cardFor(d);
+    if(isVeto(cd)) v.push('CARD '+cd.card+' — '+cd.side+(cd.why?': '+cd.why:'')+'. This is the card the three Panel F readings select; it does not move with the score');
+    if(isWatchState(cd)) v.push('CARD '+cd.card+' — '+cd.side+', but at 50% size, which is zero contracts at your 1-contract base. The setup is real and you cannot take it');
+  }
   if(!w.ok) v.push(w.n+' — no entries in this window');
   const lk=lockState();
   if(lk&&lk.active){
@@ -1827,7 +2019,15 @@ function preflight(){
      it does not have. */
   if(!A.PDLL) wn.push('The '+money(A.DAILY_LOSS_LIMIT)+' session stop on '+A.LABEL+' is advisory — nothing will act on it. The platform’s own daily-loss setting is what makes it real.');
   if(A.PNOTE) wn.push(A.LABEL+': '+A.PNOTE);
-  if(!d.panelF) wn.push('Panel F not locked — ceiling held at '+A.CEILING.NO_PANEL_F+' until you set it');
+  if(!d.panelF) wn.push('Panel F STATE not locked — ceiling held at '+A.CEILING.NO_PANEL_F+' until you set it');
+  if(d.panelF&&!isLegacyDay(d)&&!pfComplete(d)){
+    const miss=[]; if(!d.phaseF) miss.push('PHASE'); if(!d.momF) miss.push('MOMENTUM');
+    wn.push('Panel F '+miss.join(' and ')+' not recorded — no card can be selected, so the ceiling is held at base. Read all three labels off the panel');
+  }
+  {
+    const cd=cardFor(d);
+    if(cd&&!isNoTrade(cd)) wn.push('CARD '+cd.card+' — '+cd.side+' · min '+cd.min+'/6 · depth '+cd.depth+' · '+cd.tgt);
+  }
   if(esg<2) wn.push('Emotional state '+esg+'/3 — restricted: 6/6 and 1 contract only');
   if(d.panelF==='CONTRACTING') wn.push('Contracting — 5/6 minimum, stop capped at '+A.STOP_CAP_TICKS+' ticks');
   if(ratcheted) wn.push('A violation is already logged today — ceiling has ratcheted down to '+A.BASE_CONTRACTS);
@@ -1915,7 +2115,10 @@ function render(){
   kz.textContent=w.n; kz.className='chip '+(w.ok?'kz-live':'kz-block');
 
   document.getElementById('f-panelf').value=d.panelF||'';
+  document.getElementById('f-phasef').value=d.phaseF||'';
+  document.getElementById('f-momf').value=d.momF||'';
   document.getElementById('f-pricelie').checked=isPriceLie(d);
+  paintCard(d);
   document.getElementById('f-vix').value=d.vix||'';
   /* [v5.0.0] Two account selectors, and they do different jobs. f-acct is the
      DAY's default — what a new trade starts on. t-acct is what THIS trade is
@@ -2988,8 +3191,22 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   /* [v5.0.0] The account column above now carries THIS TRADE's account, not the
      day's. These four say what that account's rules were at the time, so a row
      can be re-scored years later without the registry. */
-  'account_id','account_buffer','account_session_stop','account_day_net','logged_after_done']);
+  'account_id','account_buffer','account_session_stop','account_day_net','logged_after_done',
+  /* [v5.3.0 / DEFECT 59] Appended, never inserted -- HEAD19 is keyed to live
+     workbook formulas. The 19-column handoff still carries the card, because
+     pfLabel() now renders "STATE / PHASE / MOMENTUM -- CARD nn" into panel_f.
+     These six exist so the card can be filtered on without string-parsing. */
+  'panel_f_state','panel_f_phase','panel_f_momentum','card','card_side','card_min']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
+
+/* [v5.3.0] The six card columns, in HEAD31 order. One definition, used by both
+   row shapes, so the no-trades row and the trade row cannot disagree. */
+function cardCols(d){
+  const c=cardFor(d);
+  return [d.panelF||'', d.phaseF||'', d.momF||'',
+          c?c.card:(isLegacyDay(d)?'NOT RECORDED':''),
+          c?c.side:'', c?c.min:''];
+}
 
 /* One row builder feeds the file and the clipboard, so the two can never drift
    out of column order. `wide` decides which shape comes back. */
@@ -3003,7 +3220,7 @@ function buildRows(wide){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',pfLabel(d),d.vix,esg,d.grade,sessNote,''];
       out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d,resolveAcct(d.acct)),'','','','','','','','',acctLabel(d.acct),
         '','','','','','','','','','','',carryInStreak(k),(d.excl?'YES':''),
-        d.acct||'',resolveAcct(d.acct).DRAWDOWN_BUFFER,resolveAcct(d.acct).DAILY_LOSS_LIMIT,'0.00','']):base);
+        d.acct||'',resolveAcct(d.acct).DRAWDOWN_BUFFER,resolveAcct(d.acct).DAILY_LOSS_LIMIT,'0.00',''].concat(cardCols(d))):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -3034,7 +3251,7 @@ function buildRows(wide){
         A_of(t,d).DRAWDOWN_BUFFER,
         A_of(t,d).DAILY_LOSS_LIMIT,
         (((d.byAcct||{})[acctIdOf(t,d)]||{}).net||0).toFixed(2),
-        (t.afterDone?'YES':'')]):base);
+        (t.afterDone?'YES':'')].concat(cardCols(d))):base);
     });
   });
   return out;
@@ -3554,6 +3771,13 @@ function migrate(){
        always was. Lossless: nothing is guessed, the label said both. */
     if(d.priceLie===undefined) d.priceLie=false;
     if(d.panelF==='PRICE_LIE'){ d.panelF='CONTRACTING'; d.priceLie=true; }
+    /* [v5.3.0 / DEFECT 59] PHASE and MOMENTUM were never captured before this
+       version, and no amount of inference recovers them -- a card guessed from
+       STATE alone would be a fabrication sitting in the one dataset that is
+       supposed to be evidence. They open EMPTY. A day already closed is marked
+       legacy by isLegacyDay() and keeps the ceiling it was graded under. */
+    if(d.phaseF===undefined) d.phaseF='';
+    if(d.momF===undefined)   d.momF='';
     /* [v5.2.0] DEFECT 56 — "Panel F veto / PRICE LIE" was ONE option covering
        two different rules: a PRICE LIE hard veto, and a side conflict where
        the phase disagrees with the setup direction. BREAKDOWN groups passes by
@@ -3632,6 +3856,8 @@ document.getElementById('f-pricelie').addEventListener('change',e=>{
 ['f-panelf','f-vix','f-acct'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
   const d=day();
   if(id==='f-panelf')   d.panelF=e.target.value;
+  if(id==='f-phasef')   d.phaseF=e.target.value;
+  if(id==='f-momf')     d.momF=e.target.value;
   else if(id==='f-vix') d.vix=e.target.value;
   else { d.acct=e.target.value; DB.currentAcct=e.target.value; syncCFG(); }
   recompute(d); save();
