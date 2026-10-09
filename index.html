@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.3.0</title>
+<title>EDGEIQ — Journal v5.3.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.3.0</div>
+    <div class="chip" title="build version">v5.3.1</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -220,9 +220,9 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         <label class="lbl" for="f-panelf">PANEL F — STATE (locked 9:45)</label>
         <select class="sel" id="f-panelf">
           <option value="">not set</option>
-          <option value="EXPANDING">EXPANDING \u25b2</option>
-          <option value="CONTRACTING">CONTRACTING \u25bc</option>
-          <option value="STALLED">STALLED \u25a0</option>
+          <option value="EXPANDING">EXPANDING &#9650;</option>
+          <option value="CONTRACTING">CONTRACTING &#9660;</option>
+          <option value="STALLED">STALLED &#9632;</option>
         </select>
         <label class="nostop" style="margin-top:5px"><input type="checkbox" id="f-pricelie"/> <b style="color:var(--r1)">PRICE LIE</b> — hard veto, ceiling 0</label>
       </div>
@@ -230,9 +230,9 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         <label class="lbl" for="f-phasef">PANEL F — PHASE</label>
         <select class="sel" id="f-phasef">
           <option value="">not set</option>
-          <option value="BULL">BULL \u25b2</option>
-          <option value="BEAR">BEAR \u25bc</option>
-          <option value="NEUTRAL">NEUTRAL \u25a0</option>
+          <option value="BULL">BULL &#9650;</option>
+          <option value="BEAR">BEAR &#9660;</option>
+          <option value="NEUTRAL">NEUTRAL &#9632;</option>
         </select>
         <label class="lbl" for="f-momf" style="margin-top:5px">PANEL F — MOMENTUM <b style="color:var(--y1)">(never locked)</b></label>
         <select class="sel" id="f-momf">
@@ -3853,14 +3853,27 @@ document.getElementById('f-pricelie').addEventListener('change',e=>{
   recompute(d); save();
 });
 
-['f-panelf','f-vix','f-acct'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
+/* [v5.3.1] f-phasef and f-momf were MISSING from this list in v5.3.0. The
+   handler branches below existed and could never fire, so every PHASE and
+   MOMENTUM the user picked stayed in the DOM and never reached the day
+   object. pfComplete() therefore stayed false forever, no card could ever be
+   selected, and DEFECT 59 was not fixed at all — the 36-cell matrix was
+   correct, verified, and completely unreachable. */
+['f-panelf','f-phasef','f-momf','f-vix','f-acct'].forEach(id=>document.getElementById(id).addEventListener('change',e=>{
   const d=day();
-  if(id==='f-panelf')   d.panelF=e.target.value;
-  if(id==='f-phasef')   d.phaseF=e.target.value;
-  if(id==='f-momf')     d.momF=e.target.value;
-  else if(id==='f-vix') d.vix=e.target.value;
+  /* [v5.3.1] ONE chain, no bare ifs. v5.3.0 inserted two bare `if` statements
+     ahead of an existing if/else-if/else, which severed f-panelf from the
+     chain: picking STATE or PHASE fell through to the final else and
+     overwrote d.acct with the string "EXPANDING" or "BEAR". The account chip
+     read ACCT EXPANDING, every subsequent trade would have been attributed to
+     an account that does not exist, and the per-account ceiling, buffer and
+     session stop would all have resolved off a garbage key. */
+  if(id==='f-panelf')      d.panelF=e.target.value;
+  else if(id==='f-phasef') d.phaseF=e.target.value;
+  else if(id==='f-momf')   d.momF=e.target.value;
+  else if(id==='f-vix')    d.vix=e.target.value;
   else { d.acct=e.target.value; DB.currentAcct=e.target.value; syncCFG(); }
-  recompute(d); save();
+  recompute(d); paintCard(d); save();
 }));
 /* Switching the account on the trade form recalculates the ceiling, the budget
    and the whole size bar before anything else is typed. */
