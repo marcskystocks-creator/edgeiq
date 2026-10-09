@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.3.1</title>
+<title>EDGEIQ — Journal v5.3.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.3.1</div>
+    <div class="chip" title="build version">v5.3.2</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -1210,26 +1210,43 @@ function windowAt(t){ return W.find(w=>t>=w.a&&t<w.b)||W[W.length-1]; }
    PRICE LIE, then paperwork, then the emotional gate, then THE CARD, and only
    then the ladder. The card can lower the ladder and can never raise it --
    momentum restricts permission and never expands it (deck, Card 02B). */
+/* [v5.3.2] EVERY CONSTRAINT LOWERS. NONE OF THEM RETURNS EARLY.
+   v5.3.1 tested the emotional gate before the card and returned ESG_LOW:
+
+       if(esg<=1) return A.CEILING.ESG_LOW;    // 1 — card never consulted
+
+   So on 9 Oct with Card 03 (NO SIZE) and emotional state 0/3, the app showed
+   the veto "the setup is real and you cannot take it" beside MAX CONTRACTS
+   RIGHT NOW 1. A WORSE emotional state produced a HIGHER ceiling than the
+   card permits, which is Standing Rule 8 inverted — everything fails closed,
+   a degraded input demands less size and never more.
+
+   An early return is the shape of the bug. Each rule now narrows a running
+   cap and the smallest wins, so no rule can ever be skipped by one above it
+   and no rule can raise what another has lowered. */
 function ceilingFor(d,A){
   A=A||CFG;
+  /* PRICE LIE is the one absolute. Nothing below can matter. */
   if(isPriceLie(d)) return A.CEILING.PRICE_LIE;
-  if(!d.panelF)              return A.CEILING.NO_PANEL_F;
+  if(!d.panelF)     return A.CEILING.NO_PANEL_F;
+
   const esg=(d.esg||[]).filter(Boolean).length;
-  if(esg<=1)                 return A.CEILING.ESG_LOW;
   const ladder = (d.panelF==='CONTRACTING') ? (esg>=3?A.CEILING.CONTRACTING_3:A.CEILING.CONTRACTING_2)
                : (d.panelF==='EXPANDING')   ? (esg>=3?A.CEILING.EXPANDING_3:A.CEILING.EXPANDING_2)
                : A.BASE_CONTRACTS;
+
+  let cap = ladder;
+  if(esg<=1) cap = Math.min(cap, A.CEILING.ESG_LOW);
+
   /* A day graded before v5.3.0 keeps the number it was graded under. */
-  if(isLegacyDay(d)) return ladder;
-  /* STALLED is a NO TRADE state on its own, with or without the other two. */
+  if(isLegacyDay(d))       return cap;
   if(d.panelF==='STALLED') return 0;
-  /* Panel F half-filled selects no card. Fail closed: base, not the ladder. */
-  if(!pfComplete(d)) return Math.min(ladder,A.BASE_CONTRACTS);
+  if(!pfComplete(d))       return Math.min(cap, A.BASE_CONTRACTS);
   const c=cardFor(d);
-  if(!c) return Math.min(ladder,A.BASE_CONTRACTS);
-  if(c.size==='none') return 0;
-  if(c.size==='base') return Math.min(ladder,A.BASE_CONTRACTS);
-  return ladder;
+  if(!c)                   return Math.min(cap, A.BASE_CONTRACTS);
+  if(c.size==='none')      return 0;
+  if(c.size==='base')      return Math.min(cap, A.BASE_CONTRACTS);
+  return cap;
 }
 
 /* Soft flags are missing paperwork, not broken rules. They are shown, counted
@@ -1264,6 +1281,17 @@ function ceilingReason(d,prior,A){
   if(isPriceLie(d)) return 'PRICE LIE is a hard veto — no size is permitted at all';
   if(!d.panelF)              return 'Panel F STATE is not set — until it is, the ceiling stays at base';
   const esg=(d.esg||[]).filter(Boolean).length;
+  /* [v5.3.2] The card is checked BEFORE the emotional gate is reported,
+     because a NO-SIZE card is the stronger constraint and naming the weaker
+     one tells you to fix the wrong thing. */
+  {
+    const cc=cardFor(d);
+    if(cc && !isLegacyDay(d) && cc.size==='none')
+      return (isWatchState(cc)
+        ? 'CARD '+cc.card+' — '+cc.side+' at 50%, which is nothing at a 1-contract base. A real setup you cannot size — watch state'
+        : 'CARD '+cc.card+' — '+cc.side+(cc.why?' ('+cc.why+')':'')+'. No entry exists to size')
+        + (esg<=1 ? ' (emotional state '+esg+'/3 would also cap it)' : '');
+  }
   if(esg<=1)                 return 'emotional state is '+esg+'/3 — two or more is required before the ladder opens';
   if(isLegacyDay(d))         return 'closed before v5.3.0 — graded on STATE and emotional state only, card never recorded';
   if(d.panelF==='STALLED')   return 'STALLED — Card 09, no entries into consolidation at any score';
