@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.3.2</title>
+<title>EDGEIQ — Journal v5.4.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.3.2</div>
+    <div class="chip" title="build version">v5.4.0</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -255,6 +255,34 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       </div>
     </div>
     <div id="cardbox" class="pf" style="margin-bottom:9px">\u2014</div>
+
+    <!-- [v5.4.0] THE SCORE CEILING. Panel P v2.6.1+ computes this and latches it
+         at the 09:45 bar; it prints CEIL n/6 MIN n MARG n. Copy the LOCK value.
+         The arithmetic existed in three documents before 13 Oct and was never
+         run, because it was a thing to remember rather than a thing on a form. -->
+    <label class="lbl">SCORE CEILING AT THE 09:45 LOCK — read it off Panel P</label>
+    <div class="grid g3" style="margin-bottom:4px">
+      <div><label class="lbl" for="f-ceilscore">CEILING /6</label>
+        <input class="inp" id="f-ceilscore" type="number" min="0" max="6" step="1" placeholder="e.g. 5"/></div>
+      <div><label class="lbl" for="f-ceilmin">MINIMUM</label>
+        <input class="inp" id="f-ceilmin" type="number" min="0" max="6" step="1" placeholder="card min"/></div>
+      <div><label class="lbl">MARGIN</label><div class="inp" id="f-ceilmargin" style="color:var(--gy)">—</div></div>
+    </div>
+    <div class="help" id="ceilmargin-note"></div>
+
+    <!-- [v5.4.0 / DEFECT 79] PRICE LIE is evaluated LIVE by Panel F and it
+         flickers — on 13 Oct it fired and cleared 2-3x inside six minutes. A
+         boolean on the day cannot represent that, and it wrote the same flag
+         for three different events: entered over a live veto, veto blinked
+         mid-trade, veto fired and cleared hours earlier. -->
+    <div class="grid g3" style="margin-bottom:9px">
+      <div><label class="lbl" for="f-plfired">PRICE LIE — FIRST FIRED</label>
+        <input class="inp" id="f-plfired" type="time" step="60"/></div>
+      <div><label class="lbl" for="f-plcleared">LAST CLEARED</label>
+        <input class="inp" id="f-plcleared" type="time" step="60"/></div>
+      <div><label class="lbl" for="f-plfires">TIMES IT FIRED</label>
+        <input class="inp" id="f-plfires" type="number" min="0" step="1" placeholder="0"/></div>
+    </div>
 
     <label class="lbl">EMOTIONAL STATE — answer before the first trade</label>
     <div class="tg" id="e0" onclick="tog(0)"><div class="box"></div><span>I slept enough and I am not rushing.</span></div>
@@ -1146,7 +1174,7 @@ function paintCard(d){
     ' · size '+(c.size==='full'?'full ladder':'base only, no scaling')+
     ' · <span style="opacity:.8">'+d.panelF+' / '+d.phaseF+' / '+d.momF+'</span>';
 }
-function blankDay(d){return {date:d,panelF:'',phaseF:'',momF:'',priceLie:false,vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
+function blankDay(d){return {date:d,panelF:'',phaseF:'',momF:'',priceLie:false,ceilScore:'',ceilMin:'',plFired:'',plCleared:'',plFires:'',vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -1722,6 +1750,91 @@ function isFirstParcel(d,t){
 }
 
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   [v5.4.0 / DEFECT 81 — RESTATED] THE THREE TRACKED METRICS, PER PARCEL.
+
+   DEFECT 81 WAS FIRST WRITTEN UP AS "the violations engine only flags the first
+   parcel of a position group." That is TRUE and it is NOT A BUG. The firstP
+   guard is deliberate, dates to v4.8.2, and its reasoning holds: a position
+   that scaled out in four pieces made ONE judgment about window, confluence,
+   location, setup, trigger, size and risk, and repeating those flags per parcel
+   would count one bad decision four times and make the day's violation total a
+   function of how many pieces you exited in.
+
+   THE REAL DEFECT IS A UNIT MISMATCH. The engine judges per POSITION. The three
+   tracked metrics divide by PARCELS. Counting flagged rows over all parcels
+   gives 18/33 = 55%, which is positions over parcels and measures nothing. The
+   true rate, computed by hand from the conf field, is 24/33 = 73%, and that
+   hand computation is the thing this block removes.
+
+   RESOLVED 13 Oct: metrics count PER PARCEL with the POSITION'S VERDICT
+   PROPAGATED to every parcel in it. The denominator stays what the project
+   instructions fix it at — every parcel where contracts > 0, every account,
+   excluded rows included — and the numerator now counts the same unit. It reads
+   as "what fraction of my executed size rode on a bad decision", which weights
+   a bad entry by how much was traded on it.
+
+   These fields do NOT change violation_count. The engine is untouched. They are
+   a parallel, explicitly-named read for the metrics, so the file answers the
+   three questions directly instead of being reinterpreted downstream.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const SUB_MIN_CONF=['3/6','2/6 or less','1/6','0/6'];
+const CONF_N={'6/6':6,'5/6':5,'4/6':4,'3/6':3,'2/6 or less':2};
+
+/* Every parcel of the position this parcel belongs to. An ungrouped parcel is a
+   position of one — which is what isFirstParcel and grpQtyOf already assume. */
+function grpOf(d,t){
+  if(!t.grp) return [t];
+  const g=(d.trades||[]).filter(x=>sameGrp(x,t));
+  return g.length?g:[t];
+}
+/* [v5.4.0] An ungrouped parcel exported a BLANK position, so every standalone
+   position on a day collapsed into one null group downstream. All eight 13 Oct
+   rows were blank. A synthetic id keeps every row groupable without pretending
+   the parcels were related. */
+function posIdOf(d,t){
+  if(t.grp) return t.grp;
+  const solo=(d.trades||[]).filter(x=>!x.grp&&(x.acct||'')===(t.acct||''));
+  const i=solo.indexOf(t);
+  return 'S'+(i<0?1:i+1);
+}
+function anyInPos(d,t,fn){ return grpOf(d,t).some(fn); }
+
+/* METRIC 1 — below the 4/6 minimum. The stated definition, unchanged. */
+function m1BelowMin(d,t){ return anyInPos(d,t,x=>SUB_MIN_CONF.includes(x.conf)); }
+
+/* METRIC 2 — above the day ceiling. The POSITION's size against the ceiling,
+   never the parcel's. A 5-lot scaled out as 1+1+1+1+1 scores zero under a
+   per-parcel comparison while sitting at five times the ceiling.
+
+   THE CEILING IS THE ONE IN FORCE WHEN THE POSITION OPENED — the FIRST parcel's,
+   not each parcel's own. The ceiling RATCHETS DOWN during a day, so a position
+   can straddle a ratchet: 2 Oct P1 was opened against a ceiling of 6 and its
+   second parcel carries a ceiling of 1. Reading each parcel's own value judges
+   a 5-lot entry against a limit that did not exist when it was taken, and
+   counted that position as a violation it could not have committed. The
+   violations engine already gets this right by evaluating PEAK ... OVER CEILING
+   on firstP; this mirrors it rather than inventing a second convention. */
+function m2OverCeiling(d,t){
+  const g=grpOf(d,t), first=g[0]||t;
+  const ceil=(first.ceil!=null?first.ceil:ceilingFor(d,A_of(first,d)));
+  return (ceil>0)&&(grpQtyOf(d,t)>ceil);
+}
+
+/* METRIC 3 — NO TRIGGER. Baseline 88%, the number the whole protocol is graded
+   on. If any parcel of the position was anticipated, the position was. */
+function m3NoTrigger(d,t){ return anyInPos(d,t,x=>x.trig==='NOTRIG'); }
+
+/* NOT one of the three tracked metrics — exported alongside them because the
+   card matrix exists now and the card's minimum is the bar that actually
+   governed. On a Card 08 day a 4/6 parcel clears "below 4/6" and is still
+   below the minimum that applied. */
+function mBelowCardMin(d,t){
+  const cd=cardFor(d); if(!cd) return false;
+  return anyInPos(d,t,x=>{ const g=CONF_N[x.conf]; return g!=null&&g<cd.min; });
+}
+
+
 /* [v4.8] PEAK OPEN RISK — the number that actually ends accounts.
    PEAK POSITION counts contracts, which says nothing without a stop attached:
    16 lots behind a 5-point stop is a smaller bet than 2 lots behind 60. And
@@ -2146,6 +2259,16 @@ function render(){
   document.getElementById('f-phasef').value=d.phaseF||'';
   document.getElementById('f-momf').value=d.momF||'';
   document.getElementById('f-pricelie').checked=isPriceLie(d);
+  /* [v5.4.0] Repaint the six new day inputs. Omitting this is how a value from
+     the PREVIOUS day stays on screen while the day object underneath holds
+     something else — the exact shape of the v5.3.1 dropdown defect, where the
+     DOM and the day object disagreed and the DOM looked right. */
+  document.getElementById('f-ceilscore').value = (d.ceilScore??'');
+  document.getElementById('f-ceilmin').value   = (d.ceilMin??'');
+  document.getElementById('f-plfired').value   = (d.plFired||'');
+  document.getElementById('f-plcleared').value = (d.plCleared||'');
+  document.getElementById('f-plfires').value   = (d.plFires??'');
+  paintCeilMargin(d);
   paintCard(d);
   document.getElementById('f-vix').value=d.vix||'';
   /* [v5.0.0] Two account selectors, and they do different jobs. f-acct is the
@@ -3224,8 +3347,25 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
      workbook formulas. The 19-column handoff still carries the card, because
      pfLabel() now renders "STATE / PHASE / MOMENTUM -- CARD nn" into panel_f.
      These six exist so the card can be filtered on without string-parsing. */
-  'panel_f_state','panel_f_phase','panel_f_momentum','card','card_side','card_min']);
+  'panel_f_state','panel_f_phase','panel_f_momentum','card','card_side','card_min',
+  /* [v5.4.0] Appended, never inserted. Five metric columns and six day columns.
+     pos_id replaces nothing — the legacy `position` column keeps its exact old
+     behaviour (blank when ungrouped) so no downstream read of it changes. */
+  'pos_id','m1_below_min','m2_over_ceiling','m3_no_trigger','m_below_card_min',
+  'score_ceiling','ceiling_min','ceiling_margin',
+  'price_lie_fired_at','price_lie_cleared_at','price_lie_fires']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
+
+/* [v5.4.0] The six DAY columns that follow the metric columns. Same contract as
+   cardCols: one definition, used by the no-trades row and the trade row, so the
+   two shapes cannot disagree. Margin is DERIVED and never stored — a stored
+   margin can contradict the two numbers it is computed from. */
+function dayCols(d){
+  const c=(d.ceilScore===''||d.ceilScore==null)?null:+d.ceilScore;
+  const m=(d.ceilMin===''||d.ceilMin==null)?null:+d.ceilMin;
+  return [(c==null?'':c),(m==null?'':m),((c==null||m==null)?'':(c-m)),
+          d.plFired||'', d.plCleared||'', (d.plFires===''||d.plFires==null)?'':+d.plFires];
+}
 
 /* [v5.3.0] The six card columns, in HEAD31 order. One definition, used by both
    row shapes, so the no-trades row and the trade row cannot disagree. */
@@ -3248,7 +3388,13 @@ function buildRows(wide){
       const base=[k,n,'','','NO TRADES','',0,'','',0,0,0,'',pfLabel(d),d.vix,esg,d.grade,sessNote,''];
       out.push(wide?base.concat(['','','','','','','','','','',0,ceilingFor(d,resolveAcct(d.acct)),'','','','','','','','',acctLabel(d.acct),
         '','','','','','','','','','','',carryInStreak(k),(d.excl?'YES':''),
-        d.acct||'',resolveAcct(d.acct).DRAWDOWN_BUFFER,resolveAcct(d.acct).DAILY_LOSS_LIMIT,'0.00',''].concat(cardCols(d))):base);
+        d.acct||'',resolveAcct(d.acct).DRAWDOWN_BUFFER,resolveAcct(d.acct).DAILY_LOSS_LIMIT,'0.00','']
+        .concat(cardCols(d))
+        /* A no-trades day has no parcel, so the five metric columns are blank —
+           NOT 0. A blank says "no parcel here"; a 0 would say "a parcel that did
+           not violate", and the denominator counts parcels where contracts > 0. */
+        .concat(['','','','',''])
+        .concat(dayCols(d))):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -3279,7 +3425,14 @@ function buildRows(wide){
         A_of(t,d).DRAWDOWN_BUFFER,
         A_of(t,d).DAILY_LOSS_LIMIT,
         (((d.byAcct||{})[acctIdOf(t,d)]||{}).net||0).toFixed(2),
-        (t.afterDone?'YES':'')].concat(cardCols(d))):base);
+        (t.afterDone?'YES':'')]
+        .concat(cardCols(d))
+        .concat([posIdOf(d,t),
+                 m1BelowMin(d,t)?1:0,
+                 m2OverCeiling(d,t)?1:0,
+                 m3NoTrigger(d,t)?1:0,
+                 mBelowCardMin(d,t)?1:0])
+        .concat(dayCols(d))):base);
     });
   });
   return out;
@@ -3798,6 +3951,15 @@ function migrate(){
        *and* a price lie. Split it back into the two independent facts it
        always was. Lossless: nothing is guessed, the label said both. */
     if(d.priceLie===undefined) d.priceLie=false;
+    /* [v5.4.0] Days saved before this build have no ceiling and no price-lie
+       clock. They get EMPTY STRINGS, never zeros. An unrecorded ceiling is not
+       a ceiling of 0 — that would read as "the day was unwinnable" on every
+       historical row, which is both false and the dangerous direction. */
+    if(d.ceilScore===undefined) d.ceilScore='';
+    if(d.ceilMin===undefined)   d.ceilMin='';
+    if(d.plFired===undefined)   d.plFired='';
+    if(d.plCleared===undefined) d.plCleared='';
+    if(d.plFires===undefined)   d.plFires='';
     if(d.panelF==='PRICE_LIE'){ d.panelF='CONTRACTING'; d.priceLie=true; }
     /* [v5.3.0 / DEFECT 59] PHASE and MOMENTUM were never captured before this
        version, and no amount of inference recovers them -- a card guessed from
@@ -3871,6 +4033,52 @@ async function load(){
   if(raw){ try{ DB=JSON.parse(raw)||{days:{}}; }catch(e){ DB={days:{}}; } }
   migrate();
   render();
+}
+
+/* [v5.4.0] Six day-level inputs. Registered with the SAME explicit-id pattern
+   that DEFECT (v5.3.1) was caused by getting wrong: f-phasef and f-momf were
+   missing from their list, the handler branches could never fire, and DEFECT 59
+   was not fixed at all. Every id below is asserted present at boot — see the
+   boot check at the end of this file. */
+['f-ceilscore','f-ceilmin','f-plfired','f-plcleared','f-plfires'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener('input',e=>{
+    const d=day(), v=e.target.value;
+    if(id==='f-ceilscore')      d.ceilScore=v;
+    else if(id==='f-ceilmin')   d.ceilMin=v;
+    else if(id==='f-plfired')   d.plFired=v;
+    else if(id==='f-plcleared') d.plCleared=v;
+    else if(id==='f-plfires')   d.plFires=v;
+    /* A price-lie clock entered on a day whose PRICE LIE box is unticked is a
+       contradiction the file would carry silently. Tick it. */
+    if((id==='f-plfired'||id==='f-plfires')&&v&&!d.priceLie){
+      d.priceLie=true;
+      const cb=document.getElementById('f-pricelie'); if(cb) cb.checked=true;
+    }
+    paintCeilMargin(d); recompute(d); save();
+  });
+});
+
+/* The margin is shown, never stored. <0 unwinnable, 0 zero-margin, >=1 normal —
+   the same three bands Panel P colours its own ceiling line with. */
+function paintCeilMargin(d){
+  const box=document.getElementById('f-ceilmargin');
+  const note=document.getElementById('ceilmargin-note');
+  if(!box) return;
+  const c=(d.ceilScore===''||d.ceilScore==null)?null:+d.ceilScore;
+  const m=(d.ceilMin===''||d.ceilMin==null)?null:+d.ceilMin;
+  if(c==null||m==null){ box.textContent='—'; box.style.color='var(--gy)';
+    if(note){ note.textContent=''; note.style.color='var(--gy)'; } return; }
+  const g=c-m;
+  box.textContent=(g>0?'+':'')+g;
+  box.style.color = g<0?'var(--r1)' : (g===0?'var(--y1)':'var(--gy)');
+  if(note){
+    note.textContent = g<0
+      ? 'DAY UNWINNABLE BY ARITHMETIC — no setup can clear the minimum. Log the passes and close the platform.'
+      : (g===0 ? 'ZERO MARGIN — every available step must pass. One flat whale ends the day.'
+               : 'Normal margin — trade the card.');
+    note.style.color = g<0?'var(--r1)' : (g===0?'var(--y1)':'var(--acc)');
+  }
 }
 
 document.getElementById('f-pricelie').addEventListener('change',e=>{
