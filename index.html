@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.1</title>
+<title>EDGEIQ — Journal v5.4.2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.4.1</div>
+    <div class="chip" title="build version">v5.4.2</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -689,6 +689,19 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div id="acctrows" style="margin-top:10px"></div>
   </div>
 
+  <!-- [v5.4.2] One rule set, every new account. Decided 22 Oct 2026: new
+       accounts run the same numbers as the 25K, so there is no per-account
+       drift and no deciding the rules for an account the day it is bought. -->
+  <div class="card">
+    <div class="card-h"><div class="card-t">RULES FOR EVERY NEW ACCOUNT</div><div class="card-n">applied when an account is added</div></div>
+    <div class="grid g3" style="margin-bottom:4px">
+      <div><label class="lbl" for="tp-risk">RISK PER TRADE $</label><input class="inp" id="tp-risk" type="number" step="1" min="0"/></div>
+      <div><label class="lbl" for="tp-min">MINIMUM SCORE</label><input class="inp" id="tp-min" type="number" step="1" min="3" max="6"/></div>
+      <div><label class="lbl" for="tp-stop">SESSION STOP $</label><input class="inp" id="tp-stop" type="number" step="1" min="0"/></div>
+    </div>
+    <div class="help">Every account added from here gets these three numbers. Anything typed in the add form below wins over them. Changing them here does <b>not</b> touch accounts already in the registry — edit those on their own cards.</div>
+  </div>
+
   <div class="card">
     <div class="card-h"><div class="card-t">ADD AN ACCOUNT</div><div class="card-n">catalog compiled <span id="cat-date">—</span></div></div>
     <div class="grid g3" style="margin-bottom:7px">
@@ -840,7 +853,7 @@ const PRODUCTS={
      makes it the only product in this catalog whose buffer cannot shrink from
      open profit. Values read off the offer screen — UNVERIFIED until checked
      against the TopstepX dashboard, like every new account. */
-  'Topstep|Trading Combine (Static)|25K':{buffer:1000,dll:500,minis:2,micros:20,scale:null,consist:[55,'target'],target:2000,note:'STATIC max loss — the $1,000 floor does not trail. Firm daily loss limit $500.'},
+  'Topstep|Trading Combine (Static)|25K':{buffer:1000,dll:500,minis:2,micros:20,scale:null,consist:[55,'target'],target:2000,static:true,note:'STATIC max loss — the $1,000 floor does not trail. Firm daily loss limit $500.'},
   'Topstep|Trading Combine|50K' :{buffer:2000,dll:1000,dllOpt:true,minis:5, micros:50, scale:null,consist:[55,'target'],target:3000},
   'Topstep|Trading Combine|100K':{buffer:3000,dll:2000,dllOpt:true,minis:10,micros:100,scale:null,consist:[55,'target'],target:6000},
   'Topstep|Trading Combine|150K':{buffer:4500,dll:3000,dllOpt:true,minis:15,micros:150,scale:null,consist:[55,'target'],target:9000},
@@ -918,7 +931,13 @@ function resolveAcct(id){
   /* An XFA's floor locks at $0 and the remaining balance becomes the limit, so
      its risk budget grows with capital actually earned. Everything else is a
      fixed buffer and ignores the balance entirely. */
-  const buffer = P.xfa ? Math.max(base,+A.balance||0) : base;
+  /* [v5.4.2] A STATIC max loss never moves, so every dollar of profit is a
+     dollar of extra room: the 25K at $26,100 has $2,100 above a $24,000 floor,
+     not $1,000. Read it off the balance you enter on the account card. */
+  const sFloor = (+A.startBal||0) - base;
+  const buffer = P.xfa ? Math.max(base,+A.balance||0)
+               : P.static ? Math.max(base,(+A.balance||0)-sFloor)
+               : base;
   const stop   = (A.selfStop!=null&&A.selfStop!=='') ? +A.selfStop
                                                      : Math.round(buffer*RULES.SESSION_STOP_PCT/100);
   const micros = +A.maxContracts || +P.micros || 10;
@@ -965,7 +984,18 @@ function resolveAcct(id){
        explicit value on the account always wins; the firm default is only a
        starting point, and it is editable on the account card. */
     COMMISSION_SIDE:commSideOf(A), POINT_VALUE:RULES.POINT_VALUE,
-    CONF_FRACTION:RULES.CONF_FRACTION
+    CONF_FRACTION:RULES.CONF_FRACTION,
+    /* [v5.4.2] RISK MODE. Set a dollar risk per trade on the account card and
+       the account sizes by risk: the card's size and the confluence score each
+       take a share of that dollar figure, and the STOP turns the dollars into
+       contracts. Blank keeps the v5.4.1 ladder, so no older account changes. */
+    RISK_PER_TRADE:(A.riskPerTrade!=null&&A.riskPerTrade!==''&&+A.riskPerTrade>0)?+A.riskPerTrade:0,
+    RISK_MODE:(A.riskPerTrade!=null&&A.riskPerTrade!==''&&+A.riskPerTrade>0),
+    STATIC:!!P.static, FLOOR:P.static?sFloor:null,
+    /* [v5.4.2] Account-level minimum score. Blank = the system's 4/6. Set to 3
+       on the 25K by Marc, 22 Oct 2026 06:26 ET. It lowers ONLY the base floor:
+       cards whose minimum is 4 accept 3; cards that demand 5 or 6 keep it. */
+    MIN_SCORE:(A.minScore!=null&&A.minScore!==''&&+A.minScore>=3&&+A.minScore<=6)?+A.minScore:4
   };
 }
 /* Per-side cost for an account record. Explicit beats firm default beats the
@@ -1298,6 +1328,13 @@ function ceilingFor(d,A){
   if(!pfComplete(d))       return Math.min(cap, A.BASE_CONTRACTS);
   const c=cardFor(d);
   if(!c)                   return Math.min(cap, A.BASE_CONTRACTS);
+  /* [v5.4.2] On a risk-mode account the ladder is not the limit — the stop is.
+     Every veto above still returns first. What is left is the firm's max, and
+     tradeCap() cuts it to what the risk dollars buy at the stop. */
+  if(A.RISK_MODE){
+    if(isVeto(c)) return 0;
+    return (esg<=1) ? Math.min(A.CEILING.ESG_LOW, A.MAX_CONTRACTS) : A.MAX_CONTRACTS;
+  }
   if(c.size==='none')      return 0;
   if(c.size==='base')      return Math.min(cap, A.BASE_CONTRACTS);
   return cap;
@@ -1314,7 +1351,9 @@ const SOFT_FLAGS=['F2 NOT CHECKED','LOCATION NOT RECORDED','SETUP NOT RECORDED',
                      day's ceiling over it would punish the trading for an admin gap. */
                   'ACCOUNT UNVERIFIED',
                   /* [v5.4.1] Information, not a broken rule. */
-                  'FULL-SIZE NQ','FULL-SIZE ES'];
+                  'FULL-SIZE NQ','FULL-SIZE ES',
+                  /* [v5.4.2] Allowed by the account's own minimum — recorded, not punished. */
+                  '3/6 TEST TRADE'];
 function isHard(f){ return SOFT_FLAGS.indexOf(String(f).split(' — ')[0])<0; }
 function hardCount(t){ return (t.flags||[]).filter(isHard).length; }
 function softCount(t){ return (t.flags||[]).filter(f=>!isHard(f)).length; }
@@ -1336,6 +1375,12 @@ function ceilingReason(d,prior,A){
   if(prior&&prior.some(p=>hardCount(p)>0)) return 'ratcheted to base by an earlier hard violation — it cannot be raised again today';
   if(isPriceLie(d)) return 'PRICE LIE is a hard veto — no size is permitted at all';
   if(!d.panelF)              return 'Panel F STATE is not set — until it is, the ceiling stays at base';
+  if(A.RISK_MODE&&!isLegacyDay(d)&&pfComplete(d)){
+    const rc=cardFor(d);
+    if(rc&&!isVeto(rc)&&d.panelF!=='STALLED'&&(d.esg||[]).filter(Boolean).length>1)
+      return 'RISK MODE — CARD '+rc.card+' at '+Math.round(cardRiskPct(d)*100)+'% of $'+A.RISK_PER_TRADE
+        +'. The stop sets the contracts, not this number';
+  }
   const esg=(d.esg||[]).filter(Boolean).length;
   /* [v5.3.2] The card is checked BEFORE the emotional gate is reported,
      because a NO-SIZE card is the stronger constraint and naming the weaker
@@ -1371,13 +1416,40 @@ function riskCapFor(stopPts,ins,A){
   A=A||CFG;
   const s=+stopPts||0;
   if(s<=0) return null;
-  const budget=A.DAILY_LOSS_LIMIT*A.RISK_BUDGET_PCT/100;
-  return Math.max(0,Math.floor(budget/(s*pv(ins))));
+  return Math.max(0,Math.floor(budgetOf(A)/(s*pv(ins))));
+}
+/* [v5.4.2] RISK MODE SHARES. Decided by Marc 22 Oct 2026, 06:15 ET:
+     card size  full 100% · base (75% cards) 75% · 50% cards 50% — Cards 03 and
+                04 become TRADEABLE at half risk. Their own minimums still bind:
+                Card 03 needs 5/6, Card 04 needs 6/6.
+     confluence 6/6 100% · 5/6 100% · 4/6 75% — from the Master System Manual
+                v3 scoring rule: "6/6 full size + pyramid · 5/6 full size ·
+                4/6 minimum at 75% size". An earlier draft of this build used
+                100/75/50, which was stricter than Marc's own written rule.
+                Pyramiding is still not permitted on the 25K.            */
+const RISK_CARD={full:1, base:0.75, none:0.5};
+const RISK_CONF={'6/6':1, '5/6':1, '4/6':0.75, '3/6':0.5};
+/* 3/6 trades at HALF risk and only on an account whose minimum is set to 3.
+   It is a TEST: metric 1 keeps counting every 3/6 as below the 4/6 minimum,
+   so the file shows exactly how these trades did against the system rule. */
+function effMin(cd,A){ return (cd&&cd.min===4)?Math.min(4,(A&&A.MIN_SCORE)||4):(cd?cd.min:4); }
+function isTest3(t,A){ return t.conf==='3/6'&&A&&A.RISK_MODE&&A.MIN_SCORE<=3; }
+function cardRiskPct(d){
+  const c=cardFor(d);
+  if(!c||isLegacyDay(d)) return 1;
+  if(isVeto(c)) return 0;
+  return RISK_CARD[c.size]||0;
+}
+/* Dollars this trade may risk on a risk-mode account, before the stop. */
+function riskDollarsFor(d,conf,A){
+  A=A||CFG;
+  if(!A.RISK_MODE) return budgetOf(A);
+  return A.RISK_PER_TRADE*cardRiskPct(d)*(RISK_CONF[conf]||0);
 }
 /* The per-trade risk budget for an account: 25% of a session stop that is
    itself 10% of that account's buffer. One rule, different dollars per account —
    which is the correctly scaled version, not the looser one. */
-function budgetOf(A){ A=A||CFG; return A.DAILY_LOSS_LIMIT*A.RISK_BUDGET_PCT/100; }
+function budgetOf(A){ A=A||CFG; return A.RISK_MODE?A.RISK_PER_TRADE:A.DAILY_LOSS_LIMIT*A.RISK_BUDGET_PCT/100; }
 
 /* When the 3-loss lockout clears, in minutes-of-day. Null when no lockout is
    running. Measured from the LAST loss's exit, so a fourth loss restarts it.
@@ -1433,6 +1505,7 @@ function lockoutEnd(prior,atMins){
    is the ceiling, the hard max and the risk budget, and those read A. */
 function tradeCap(d,prior,conf,stopPts,ins,mins,A){
   A=A||CFG;
+  if(A.RISK_MODE) return tradeCapRisk(d,prior,conf,stopPts,ins,mins,A);
   const frac=A.CONF_FRACTION[conf];
   if(!(frac>0)) return 0;
 
@@ -1461,6 +1534,43 @@ function tradeCap(d,prior,conf,stopPts,ins,mins,A){
   if(rc!==null) cap=Math.min(cap,rc);
 
   return Math.max(0,cap);
+}
+
+/* [v5.4.2] Risk-mode cap. Same lockout, streak and ratchet rules as the ladder
+   version — those are about the trader and do not change with the account.
+   What changes is where the number comes from: dollars over the stop.
+   No stop entered = base size. Sizing without a stop is the one thing this
+   mode cannot do, and it fails closed rather than guessing. */
+function tradeCapRisk(d,prior,conf,stopPts,ins,mins,A){
+  if(!(RISK_CONF[conf]>0)) return 0;
+  if(conf==='3/6'&&A.MIN_SCORE>3) return 0;
+  const cd=cardFor(d);
+  if(cd&&!isLegacyDay(d)){
+    const got=CONF_N[conf];
+    if(got!=null&&cd.min&&got<effMin(cd,A)) return 0;     // below this card's minimum
+  }
+  const ceil=ratchetedCeiling(d,prior,A);
+  if(ceil<=0) return 0;
+
+  const POS=resolvedPositions(prior,mins);
+  const streak=lossRun(POS);
+  const lo=lockoutEnd(prior,mins);
+  if(lo!==null){
+    if(mins!=null&&mins<lo) return 0;
+    if(conf!=='6/6')        return 0;
+  }
+
+  const s=+stopPts||0;
+  let cap = s>0 ? Math.floor(riskDollarsFor(d,conf,A)/(s*pv(ins))) : A.BASE_CONTRACTS;
+
+  if(lo!==null)       cap=Math.min(cap,A.BASE_CONTRACTS);
+  else if(streak===2) cap=Math.min(cap,1);
+  else if(streak===1) cap=Math.max(Math.min(cap,1),Math.floor(cap/2));
+
+  const prev=POS[POS.length-1];
+  if(prev&&prev.res==='LOSS') cap=Math.min(cap,prev.qty);
+
+  return Math.max(0,Math.min(cap,A.MAX_CONTRACTS,ceil));
 }
 
 // Peak concurrent position across the day + how much was already open at each entry.
@@ -1522,16 +1632,17 @@ function analyze(t,prior,d,openBefore){
   {
     const cd=cardFor(d);
     if(isVeto(cd))           f.push('CARD '+cd.card+' — '+cd.side+', NO ENTRY PERMITTED AT ANY SCORE');
-    else if(isWatchState(cd)) f.push('CARD '+cd.card+' IS A WATCH STATE — 50% size is 0 at a 1-contract base');
+    else if(isWatchState(cd)&&!A.RISK_MODE) f.push('CARD '+cd.card+' IS A WATCH STATE — 50% size is 0 at a 1-contract base');
     else if(cd){
       const got={'6/6':6,'5/6':5,'4/6':4,'3/6':3,'2/6 or less':2}[t.conf];
-      if(got!=null&&got<cd.min) f.push('BELOW CARD '+cd.card+' MINIMUM — needs '+cd.min+'/6, had '+t.conf);
+      if(got!=null&&got<effMin(cd,A)) f.push('BELOW CARD '+cd.card+' MINIMUM — needs '+effMin(cd,A)+'/6, had '+t.conf);
       if(cd.side.indexOf('LONG')===0&&t.dir==='SHORT') f.push('CARD '+cd.card+' IS LONG-ONLY — took a short');
       if(cd.side.indexOf('SHORT')===0&&t.dir==='LONG') f.push('CARD '+cd.card+' IS SHORT-ONLY — took a long');
     }
   }
   if(d.panelF==='CONTRACTING'&&['4/6','3/6','2/6 or less'].includes(t.conf)) f.push('CONTRACTING NEEDS 5/6');
-  if(['3/6','2/6 or less'].includes(t.conf)) f.push('BELOW 4/6 MIN');
+  if(isTest3(t,A)) f.push('3/6 TEST TRADE — below the system 4/6, allowed on '+A.LABEL+' at half risk');
+  else if(['3/6','2/6 or less'].includes(t.conf)) f.push('BELOW 4/6 MIN');
   if(esg<2&&(t.conf!=='6/6'||gqty>1)) f.push('ESG RESTRICTED');
   if(!t.f2) f.push('F2 NOT CHECKED');
 
@@ -1618,6 +1729,12 @@ function analyze(t,prior,d,openBefore){
      the self-imposed day stop. State both: the % of the session budget tells you
      the trade is oversized, the % of the buffer tells you what it costs if the
      whole thing goes wrong. */
+  else if(A.RISK_MODE){
+    const allowed=riskDollarsFor(d,t.conf,A);
+    if(risk>allowed+0.01) f.push('RISK $'+risk.toFixed(2)+' OVER THE $'+allowed.toFixed(2)
+      +' THIS TRADE WAS ALLOWED — $'+A.RISK_PER_TRADE+' x card '+Math.round(cardRiskPct(d)*100)
+      +'% x '+(t.conf||'no score')+' '+Math.round((RISK_CONF[t.conf]||0)*100)+'% on '+A.LABEL);
+  }
   else if(riskPct>A.RISK_BUDGET_PCT) f.push('RISK '+Math.round(riskPct)+'% OF DAY STOP — budget is '
       +A.RISK_BUDGET_PCT+'%, that stop affords '+rc
       +' — $'+risk.toFixed(2)+' is '+(risk/A.DRAWDOWN_BUFFER*100).toFixed(1)+'% OF THE $'
@@ -1878,6 +1995,14 @@ function m1BelowMin(d,t){ return anyInPos(d,t,x=>SUB_MIN_CONF.includes(x.conf));
    on firstP; this mirrors it rather than inventing a second convention. */
 function m2OverCeiling(d,t){
   const g=grpOf(d,t), first=g[0]||t;
+  /* [v5.4.2] On a risk-mode account there is no ladder ceiling to exceed —
+     the day ceiling is the firm max. Metric 2 there reads the position against
+     the cap its own risk dollars bought. THIS IS A DIFFERENT DEFINITION: do not
+     pool these rows with the 68% baseline, which was measured on the ladder. */
+  if(A_of(first,d).RISK_MODE){
+    const cap=(first.cap!=null)?first.cap:0;
+    return grpQtyOf(d,t)>cap;
+  }
   const ceil=(first.ceil!=null?first.ceil:ceilingFor(d,A_of(first,d)));
   return (ceil>0)&&(grpQtyOf(d,t)>ceil);
 }
@@ -2196,7 +2321,8 @@ function preflight(){
   {
     const cd=cardFor(d);
     if(isVeto(cd)) v.push('CARD '+cd.card+' — '+cd.side+(cd.why?': '+cd.why:'')+'. This is the card the three Panel F readings select; it does not move with the score');
-    if(isWatchState(cd)) v.push('CARD '+cd.card+' — '+cd.side+', but at 50% size, which is zero contracts at your 1-contract base. The setup is real and you cannot take it');
+    if(isWatchState(cd)&&!A.RISK_MODE) v.push('CARD '+cd.card+' — '+cd.side+', but at 50% size, which is zero contracts at your 1-contract base. The setup is real and you cannot take it');
+    if(isWatchState(cd)&&A.RISK_MODE) wn.push('CARD '+cd.card+' — '+cd.side+' at HALF RISK on '+A.LABEL+' · min '+cd.min+'/6 · depth '+cd.depth+' · '+cd.tgt);
   }
   if(!w.ok) v.push(w.n+' — no entries in this window');
   const lk=lockState();
@@ -2253,6 +2379,14 @@ function preflight(){
   why.push(A.LABEL);
   why.push('ceiling '+ceil);
   why.push(document.getElementById('t-conf').value);
+  if(A.RISK_MODE){
+    const conf=document.getElementById('t-conf').value;
+    const usd=riskDollarsFor(d,conf,A);
+    why.push(!conf?'set Panel P to size it'
+      :(stopPts>0?('$'+usd.toFixed(2)+' risk ($'+A.RISK_PER_TRADE+' × card '+Math.round(cardRiskPct(d)*100)+'% × '+conf+' '
+          +Math.round((RISK_CONF[conf]||0)*100)+'%) at '+stopPts+'pt')
+        :'no stop entered — base size only until you enter one'));
+  }else
   why.push(rc===null?'no stop set — risk cap not applied'
                     :('stop '+stopPts+'pt affords '+rc+' at $'+budgetOf(A).toFixed(0)+' budget'));
   if(ratcheted) why.push('ratcheted — hard violation logged');
@@ -3030,6 +3164,13 @@ function renderStats(){
    from the catalog. What the catalog cannot know is on the instance: the number,
    the date, the balance, what it cost, and your own session stop.
    ═══════════════════════════════════════════════════════════════════════════ */
+function TPL(){ return (DB&&DB.acctTemplate)||{}; }
+function paintTemplate(){
+  const t=TPL();
+  [['tp-risk','riskPerTrade'],['tp-min','minScore'],['tp-stop','selfStop']].forEach(([id,k])=>{
+    const el=document.getElementById(id); if(el&&document.activeElement!==el) el.value=(t[k]!=null?t[k]:'');
+  });
+}
 function firmsInCatalog(){ return Array.from(new Set(Object.keys(PRODUCTS).map(k=>k.split('|')[0]))); }
 function productsFor(f){ return Array.from(new Set(Object.keys(PRODUCTS).filter(k=>k.split('|')[0]===f).map(k=>k.split('|')[1]))); }
 function sizesFor(f,p){ return Object.keys(PRODUCTS).filter(k=>{const x=k.split('|');return x[0]===f&&x[1]===p;}).map(k=>k.split('|')[2]); }
@@ -3094,7 +3235,9 @@ function addAccount(){
     bought:document.getElementById('a-bought').value||'',
     startBal:startBal, balance:(balIn!==''?+balIn:startBal),
     status:'active', endedOn:'', endReason:'', cost:+document.getElementById('a-cost').value||0,
-    selfStop:(stopIn!==''?+stopIn:null),
+    selfStop:(stopIn!==''?+stopIn:(TPL().selfStop||null)),
+    riskPerTrade:TPL().riskPerTrade||null,
+    minScore:TPL().minScore||null,
     firmDLL:(dllSel===''?null:(dllSel==='0'?0:(+P.dll||0))),
     verified:false
   };
@@ -3177,6 +3320,7 @@ function renderAccounts(){
   const host=document.getElementById('acctrows'); if(!host) return;
   const cd=document.getElementById('cat-date'); if(cd) cd.textContent=CATALOG_DATE;
   paintCatalogSelects();
+  paintTemplate();
   /* [v5.4.1] Live accounts first, ended accounts after — still shown, because
      what they cost belongs on the LIFETIME line. */
   const ids=liveIds().concat(acctIds().filter(id=>!isLive(id)));
@@ -3232,7 +3376,9 @@ function renderAccounts(){
         +(id===DB.currentAcct?' <span style="color:var(--acc)">· CURRENT</span>':'')+'</div>'
       +'<div class="card-n">'+A.FIRM+' · '+A.PRODUCT+' · '+A.SIZE+'</div></div>'
       +row(/Static/.test(A.PRODUCT)?'max loss — STATIC, does not trail':'trailing drawdown', money(A.DRAWDOWN_BUFFER)+(A.XFA?' (tracks balance)':''))
-      +row('your session stop', money(A.DAILY_LOSS_LIMIT)+' · '+RULES.SESSION_STOP_PCT+'% of buffer'
+      +(A.STATIC?row('static floor', money(A.FLOOR)+' · room above it '+money(A.DRAWDOWN_BUFFER)+' at this balance'):'')
+      +(A.RISK_MODE?row('sizing', 'RISK MODE · '+money(A.RISK_PER_TRADE)+' a trade × card × score, divided by the stop'):'')
+      +row('your session stop', money(A.DAILY_LOSS_LIMIT)+(A.RISK_MODE?'':' · '+RULES.SESSION_STOP_PCT+'% of buffer')
            +(A.PDLL?' · ENFORCED AT THE PLATFORM':' · advisory only'))
       +row('per-trade budget', money(bud)+' · '+mic+' MNQ micro'+(mic===1?'':'s')+' at 12.5 pts')
       +row('ceiling ladder tops at', A.CEILING.EXPANDING_3)
@@ -3258,6 +3404,16 @@ function renderAccounts(){
          Blank falls back to the firm default; set it from a real statement the
          first time you reconcile, because an assumed rate quietly moves every
          net figure and every scratch-or-loss call in the store. */
+      +'<div class="grid g3" style="margin-top:8px">'
+      +'<div><label class="lbl">RISK PER TRADE $ — blank = ladder</label><input class="inp" type="number" step="1" min="0" value="'
+        +(A.RISK_MODE?A.RISK_PER_TRADE:'')+'" placeholder="e.g. 100" onchange="setAcctField(\''+id+'\',\'riskPerTrade\',this.value)"/></div>'
+      +'<div><label class="lbl">MINIMUM SCORE — blank = 4</label><input class="inp" type="number" step="1" min="3" max="6" value="'
+        +((DB.accounts[id]&&DB.accounts[id].minScore!=null&&DB.accounts[id].minScore!=='')?DB.accounts[id].minScore:'')
+        +'" placeholder="4" onchange="setAcctField(\''+id+'\',\'minScore\',this.value)"/></div>'
+      +'<div><label class="lbl">YOUR SESSION STOP $</label><input class="inp" type="number" step="1" min="0" value="'
+        +((DB.accounts[id]&&DB.accounts[id].selfStop!=null&&DB.accounts[id].selfStop!=='')?DB.accounts[id].selfStop:'')
+        +'" placeholder="'+A.DAILY_LOSS_LIMIT+'" onchange="setAcctField(\''+id+'\',\'selfStop\',this.value)"/></div>'
+      +'</div>'
       +'<div class="grid g3" style="margin-top:8px">'
       +'<div><label class="lbl">COMMISSION + FEES PER SIDE</label><input class="inp" type="number" step="0.01" placeholder="'
         +commSideOf(DB.accounts[id]||{}).toFixed(2)+'" value="'
@@ -4066,6 +4222,7 @@ function migrate(){
   });
   if(!DB.currentAcct||!DB.accounts[DB.currentAcct]||!isLive(DB.currentAcct))
     DB.currentAcct=liveIds()[0]||Object.keys(DB.accounts)[0]||DEFAULT_ACCT;
+  if(!DB.acctTemplate) DB.acctTemplate={riskPerTrade:100,minScore:3,selfStop:500};
   DB.schema=5;
   syncCFG();
 
@@ -4246,6 +4403,16 @@ document.getElementById('f-pricelie').addEventListener('change',e=>{
 document.getElementById('t-acct').addEventListener('change',()=>{ preflight(); paintDerived(); });
 { const ia=document.getElementById('imp-acct');
   if(ia) ia.addEventListener('change',()=>{ DB.importAcct=ia.value; paintImportAcct(); save(); }); }
+[['tp-risk','riskPerTrade'],['tp-min','minScore'],['tp-stop','selfStop']].forEach(([id,k])=>{
+  const el=document.getElementById(id); if(!el) return;
+  el.addEventListener('change',e=>{
+    DB.acctTemplate=DB.acctTemplate||{};
+    const v=e.target.value;
+    DB.acctTemplate[k]=(v===''?null:+v);
+    if(k==='minScore'&&v!==''&&(+v<3||+v>6)) DB.acctTemplate[k]=null;
+    save();
+  });
+});
 ['a-firm','a-prod','a-size'].forEach(id=>{
   const e=document.getElementById(id); if(e) e.addEventListener('change',paintCatalogSelects);
 });
