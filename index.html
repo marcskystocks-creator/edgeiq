@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.0</title>
+<title>EDGEIQ — Journal v5.4.1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.4.0</div>
+    <div class="chip" title="build version">v5.4.1</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -802,7 +802,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
    that auto-fills a wrong buffer is worse than no catalog, so a preset is shown
    but stays flagged until it is confirmed against the firm's own screen.
    ═══════════════════════════════════════════════════════════════════════════ */
-const CATALOG_DATE='2026-10-04';
+const CATALOG_DATE='2026-10-22';
 
 /* buffer  — trailing max drawdown. The number that actually ends the account.
    dll     — the FIRM's daily loss limit, 0 = none. Never a risk control: on the
@@ -835,6 +835,12 @@ const PRODUCTS={
   'Tradeify|Select Daily|100K':{buffer:2500,dll:1250,minis:8, micros:80, scale:[[0,3],[1500,4],[2000,5],[3000,8]],          consist:[0,''],target:0},
   'Tradeify|Select Daily|150K':{buffer:3500,dll:1750,minis:12,micros:120,scale:[[0,3],[1500,4],[2000,5],[3000,8],[4500,12]],consist:[0,''],target:0},
 
+  /* [v5.4.1] Topstep Labs Static Combine, bought 21 Oct 2026. STATIC max loss:
+     the floor is fixed at start balance minus $1,000 and never trails, which
+     makes it the only product in this catalog whose buffer cannot shrink from
+     open profit. Values read off the offer screen — UNVERIFIED until checked
+     against the TopstepX dashboard, like every new account. */
+  'Topstep|Trading Combine (Static)|25K':{buffer:1000,dll:500,minis:2,micros:20,scale:null,consist:[55,'target'],target:2000,note:'STATIC max loss — the $1,000 floor does not trail. Firm daily loss limit $500.'},
   'Topstep|Trading Combine|50K' :{buffer:2000,dll:1000,dllOpt:true,minis:5, micros:50, scale:null,consist:[55,'target'],target:3000},
   'Topstep|Trading Combine|100K':{buffer:3000,dll:2000,dllOpt:true,minis:10,micros:100,scale:null,consist:[55,'target'],target:6000},
   'Topstep|Trading Combine|150K':{buffer:4500,dll:3000,dllOpt:true,minis:15,micros:150,scale:null,consist:[55,'target'],target:9000},
@@ -1032,8 +1038,9 @@ let VIEW=etDate();
    Retyping it every morning is how a field ends up blank for a week. */
 function lastAccount(){
   const ks=Object.keys(DB.days).sort();
-  for(let i=ks.length-1;i>=0;i--){ const a=DB.days[ks[i]].acct; if(a&&DB.accounts[a]) return a; }
-  return DB.currentAcct||DEFAULT_ACCT;
+  for(let i=ks.length-1;i>=0;i--){ const a=DB.days[ks[i]].acct; if(a&&DB.accounts[a]&&isLive(a)) return a; }
+  if(DB.currentAcct&&isLive(DB.currentAcct)) return DB.currentAcct;
+  return liveIds()[0]||DB.currentAcct||DEFAULT_ACCT;
 }
 /* [v5.0.0] d.acct is now only the DEFAULT for new trades on this day. The
    account that governs a trade's ceiling, buffer and flags is the one stored on
@@ -1205,6 +1212,25 @@ function money(n){return (n<0?'-$':'$')+Math.abs(n).toFixed(2);}
 function pv(ins){ return RULES.POINT_VALUE[ins||'MNQ']||2; }
 /* Accounts, oldest first, for the selectors. */
 function acctIds(){ return Object.keys(DB.accounts||{}); }
+/* [v5.4.1] An account's life ends one of two ways and the journal must say
+   which. BLOWN = the firm closed it on a rule breach. CLOSED = you ended it
+   (passed, cancelled, let it lapse). Either way its trades STAY — deleting the
+   history of the accounts you lost is how a journal ends up describing only
+   the trader you wish you were. They drop out of the pickers, not the record. */
+const ACCT_STATUS=['active','blown','closed'];
+function isLive(id){ const a=(DB.accounts||{})[id]; return !!a&&(!a.status||a.status==='active'); }
+function liveIds(){ return acctIds().filter(isLive); }
+/* Ids for a picker: every live account, plus the one already selected if it is
+   not live — so opening an old day on a blown account still shows the truth. */
+function pickerIds(keep){
+  const ids=liveIds();
+  (Array.isArray(keep)?keep:[keep]).forEach(k=>{ if(k&&DB.accounts[k]&&ids.indexOf(k)<0) ids.push(k); });
+  return ids;
+}
+function statusTag(a){
+  if(!a||!a.status||a.status==='active') return '';
+  return ' · '+a.status.toUpperCase()+(a.endedOn?' '+a.endedOn:'');
+}
 function acctLabel(id){ const a=(DB.accounts||{})[id]; return a?(a.label||id):(id||'—'); }
 function acctFirmOf(id){ const a=(DB.accounts||{})[id]; return a?[a.firm,a.product,a.size].filter(Boolean).join(' '):''; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1286,7 +1312,9 @@ const SOFT_FLAGS=['F2 NOT CHECKED','LOCATION NOT RECORDED','SETUP NOT RECORDED',
                   /* [v5.0.0] An unconfirmed preset is missing paperwork, not a broken rule.
                      It must be visible on every trade it touches — but ratcheting the whole
                      day's ceiling over it would punish the trading for an admin gap. */
-                  'ACCOUNT UNVERIFIED'];
+                  'ACCOUNT UNVERIFIED',
+                  /* [v5.4.1] Information, not a broken rule. */
+                  'FULL-SIZE NQ','FULL-SIZE ES'];
 function isHard(f){ return SOFT_FLAGS.indexOf(String(f).split(' — ')[0])<0; }
 function hardCount(t){ return (t.flags||[]).filter(isHard).length; }
 function softCount(t){ return (t.flags||[]).filter(f=>!isHard(f)).length; }
@@ -1523,6 +1551,39 @@ function analyze(t,prior,d,openBefore){
   if(!A.VERIFIED) f.push('ACCOUNT UNVERIFIED — '+A.LABEL+' preset has not been confirmed against the dashboard');
   if(openBefore>0) f.push('PYRAMID — '+openBefore+' already open');
   if(openBefore+gqty>ceil&&ceil>0) f.push('PEAK '+(openBefore+gqty)+' OVER CEILING '+ceil);
+
+  /* [v5.4.1] THREE FLAGS FROM THE NIGHT OF 21 OCT.
+     All four Tradeify accounts went in one session: an unplanned NQ long,
+     averaged down five times, every fill copied to every account. The journal
+     had no words for any of the three, so it could not have counted them.
+
+     COPIED — the same entry, same minute, same side, same instrument, on more
+     than one account. One decision, multiplied. Marc's rule as of 22 Oct is
+     no copy trading; this is how the file proves it held. */
+  {
+    const twins=(d.trades||[]).filter(x=>x!==t&&acctIdOf(x,d)!==A.ID&&x.dir===t.dir
+      &&(x.ins||'MNQ')===(t.ins||'MNQ')&&Math.abs(x.mins-t.mins)<=1);
+    const accts=Array.from(new Set(twins.map(x=>acctIdOf(x,d))));
+    if(accts.length) f.push('COPIED — same entry on '+(accts.length+1)+' accounts. One decision, multiplied');
+  }
+  /* AVERAGED DOWN — added on the same side while an earlier position on this
+     account was underwater at the new entry price. Needs fill prices, so it
+     only fires on imported rows; a hand-typed row cannot be judged and is not
+     guessed at. This is distinct from PYRAMID, which fires on adding to a
+     winner as well — adding to a loser is the one that empties accounts. */
+  if(+t.inPx>0){
+    const under=(d.trades||[]).filter(x=>x!==t&&!sameGrp(x,t)&&acctIdOf(x,d)===A.ID&&x.dir===t.dir
+      &&(x.ins||'MNQ')===(t.ins||'MNQ')&&+x.inPx>0&&x.mins<=t.mins
+      &&(x.outMins==null||x.outMins>=t.mins)
+      &&(t.dir==='LONG'? +t.inPx<+x.inPx : +t.inPx>+x.inPx));
+    if(under.length) f.push('AVERAGED DOWN — added '+(t.dir==='LONG'?'below':'above')+' '+under.length
+      +' open entr'+(under.length>1?'ies that were':'y that was')+' losing');
+  }
+  /* FULL-SIZE CONTRACT — not a violation in itself; NQ and ES are on the
+     instrument list. It is here because one NQ is ten MNQ, and on 21 Oct the
+     switch was made without a reason: "I don't even know why I traded NQ." */
+  if(t.ins==='NQ'||t.ins==='ES')
+    f.push('FULL-SIZE '+t.ins+' — '+(t.ins==='NQ'?'10x':'10x')+' the micro, $'+pv(t.ins)+' a point per contract');
 
   // ── LOCATION
   if(t.dir==='LONG'&&t.loc==='PREMIUM') f.push('LONG IN PREMIUM');
@@ -2129,6 +2190,7 @@ function preflight(){
   const v=[],wn=[];
   /* [v5.0.0] You said you were finished. Nothing here can stop an order, but the
      journal will not quietly pretend the decision was never made. */
+  if(!isLive(A.ID)) v.push(A.LABEL+' is '+String((DB.accounts[A.ID]||{}).status||'').toUpperCase()+' — it cannot take a trade. Pick a live account on the trade.');
   if(d.done) v.push('YOU CALLED THE DAY DONE — on every account. Nothing after this was part of the plan.');
   if(isPriceLie(d)) v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
   {
@@ -2274,22 +2336,26 @@ function render(){
   /* [v5.0.0] Two account selectors, and they do different jobs. f-acct is the
      DAY's default — what a new trade starts on. t-acct is what THIS trade is
      actually on, and it is the one that decides the ceiling and the budget. */
-  const opts=acctIds().map(id=>{
+  /* [v5.4.1] Pickers list LIVE accounts only. A blown account appears only
+     when it is already the selection — an old day opened for review. */
+  const optsFor=ids=>ids.map(id=>{
     const a=DB.accounts[id];
     return '<option value="'+id+'">'+String(a.label||id).replace(/</g,'&lt;')
-      +(a.verified?'':' · UNVERIFIED')+'</option>';
-  }).join('');
+      +(a.verified?'':' · UNVERIFIED')+statusTag(a)+'</option>';
+  }).join('')||'<option value="">no active account — add one on ACCOUNTS</option>';
+  const opts=optsFor(liveIds());
   const fa=document.getElementById('f-acct'), ta=document.getElementById('t-acct');
-  if(fa){ fa.innerHTML=opts; fa.value=d.acct||DB.currentAcct||DEFAULT_ACCT; }
-  if(ta){ const keep=ta.value; ta.innerHTML=opts;
-          ta.value=(keep&&DB.accounts[keep])?keep:(d.acct||DB.currentAcct||DEFAULT_ACCT); }
+  if(fa){ fa.innerHTML=optsFor(pickerIds(d.acct)); fa.value=d.acct||DB.currentAcct||DEFAULT_ACCT; }
+  if(ta){ const keep=ta.value;
+          const want=(keep&&DB.accounts[keep]&&(isLive(keep)||keep===d.acct))?keep:(d.acct||DB.currentAcct||DEFAULT_ACCT);
+          ta.innerHTML=optsFor(pickerIds(want)); ta.value=want; }
   /* [v5.0.1] A third selector, on the DATA tab, and it is the most consequential
      of the three: it decides which account's imported rows a file is allowed to
      replace. It deliberately does NOT follow the day's account — a file is
      loaded long after the session and the day selector is the wrong default to
      inherit when the cost of being wrong is deleting the other broker's rows. */
   { const ia=document.getElementById('imp-acct');
-    if(ia){ const keep=ia.value; ia.innerHTML=opts;
+    if(ia){ const keep=ia.value; ia.innerHTML=optsFor(pickerIds([keep,DB.importAcct]));
             ia.value=(keep&&DB.accounts[keep])?keep:(DB.importAcct&&DB.accounts[DB.importAcct]?DB.importAcct:(DB.currentAcct||DEFAULT_ACCT));
             paintImportAcct(); } }
   /* [v5.1.0] Only this account's tags. The list used to offer every tag on the
@@ -3027,7 +3093,7 @@ function addAccount(){
     label:label, firm:firm, product:prod, size:size, acctNo:no,
     bought:document.getElementById('a-bought').value||'',
     startBal:startBal, balance:(balIn!==''?+balIn:startBal),
-    status:'active', cost:+document.getElementById('a-cost').value||0,
+    status:'active', endedOn:'', endReason:'', cost:+document.getElementById('a-cost').value||0,
     selfStop:(stopIn!==''?+stopIn:null),
     firmDLL:(dllSel===''?null:(dllSel==='0'?0:(+P.dll||0))),
     verified:false
@@ -3055,8 +3121,29 @@ function togglePDLL(id){
   if(!confirm('Mark '+(a.label||id)+'’s session stop as enforced at the platform?\n\nYou are stating that you have actually set this limit in the broker’s own risk settings — Tradovate for Tradeify, TopstepX for Topstep — and that it will liquidate or lock the account on its own.\n\nIf it is only written down here, leave this off. A stop nothing acts on is a note, and the journal should keep saying so.')) return;
   a.pdll=true; save();
 }
+/* [v5.4.1] Ending an account is a deliberate act with a date on it. */
+function setAcctStatus(id,v){
+  const a=DB.accounts[id]; if(!a||ACCT_STATUS.indexOf(v)<0) return;
+  if(v===(a.status||'active')) return;
+  if(v!=='active'){
+    const msg=v==='blown'
+      ? 'Mark '+(a.label||id)+' as BLOWN?\n\nThe firm closed it. Its trades stay in the journal and in every breakdown; it leaves the account pickers.'
+      : 'Mark '+(a.label||id)+' as CLOSED?\n\nYou ended it. Its trades stay; it leaves the account pickers.';
+    if(!confirm(msg)){ render(); return; }
+    a.endedOn=a.endedOn||etDate();
+  }else{ a.endedOn=''; a.endReason=''; }
+  a.status=v;
+  if(v!=='active'&&DB.currentAcct===id){ DB.currentAcct=liveIds()[0]||id; }
+  if(v!=='active'&&day().acct===id&&!day().trades.length){ day().acct=DB.currentAcct; }
+  syncCFG(); recomputeAll(); save();
+}
+function setAcctText(id,f,v){
+  const a=DB.accounts[id]; if(!a) return;
+  a[f]=String(v||'').trim(); save();
+}
 function useAccount(id){
   if(!DB.accounts[id]) return;
+  if(!isLive(id)){ alert(acctLabel(id)+' is '+DB.accounts[id].status.toUpperCase()+'. Set it back to ACTIVE first.'); return; }
   DB.currentAcct=id; day().acct=id; syncCFG(); recompute(day()); save();
 }
 function delAccount(id){
@@ -3090,10 +3177,13 @@ function renderAccounts(){
   const host=document.getElementById('acctrows'); if(!host) return;
   const cd=document.getElementById('cat-date'); if(cd) cd.textContent=CATALOG_DATE;
   paintCatalogSelects();
-  const ids=acctIds();
-  const unv=ids.filter(id=>!DB.accounts[id].verified).length;
+  /* [v5.4.1] Live accounts first, ended accounts after — still shown, because
+     what they cost belongs on the LIFETIME line. */
+  const ids=liveIds().concat(acctIds().filter(id=>!isLive(id)));
+  const unv=liveIds().filter(id=>!DB.accounts[id].verified).length;
+  const dead=ids.length-liveIds().length;
   document.getElementById('acct-n').textContent=
-    ids.length+' account'+(ids.length===1?'':'s')+(unv?' · '+unv+' UNVERIFIED':' · all verified');
+    liveIds().length+' active'+(dead?' · '+dead+' ended':'')+(unv?' · '+unv+' UNVERIFIED':(liveIds().length?' · all verified':''));
   /* Lifetime cost against profit. Not the full payout ledger — that lands in
      5.1 — but enough to see whether these accounts are a business. */
   const totCost=ids.reduce((s,id)=>s+(+DB.accounts[id].cost||0),0);
@@ -3102,13 +3192,46 @@ function renderAccounts(){
     const bud=budgetOf(A);
     const mic=Math.floor(bud/25);
     const row=(k,v)=>'<div class="bdrow thin"><span>'+k+'</span><span></span><span class="bdval">'+v+'</span></div>';
+    const rec=DB.accounts[id]||{}, live=isLive(id);
+    const st=rec.status||'active';
+    const statusBlock='<div class="grid g3" style="margin-top:8px">'
+      +'<div><label class="lbl">STATUS</label><select class="sel" onchange="setAcctStatus(\''+id+'\',this.value)">'
+        +ACCT_STATUS.map(x=>'<option value="'+x+'"'+(x===st?' selected':'')+'>'+x.toUpperCase()+'</option>').join('')
+        +'</select></div>'
+      +(live?'':
+        '<div><label class="lbl">ENDED ON</label><input class="inp" type="date" value="'+esc(rec.endedOn||'')
+          +'" onchange="setAcctText(\''+id+'\',\'endedOn\',this.value)"/></div>'
+        +'<div><label class="lbl">HOW IT ENDED</label><input class="inp" value="'+esc(rec.endReason||'')
+          +'" placeholder="what happened, one line" onchange="setAcctText(\''+id+'\',\'endReason\',this.value)"/></div>')
+      +'</div>';
+    if(!live){
+      return '<div class="card" style="background:var(--bg3);margin-bottom:8px;opacity:.72;border-color:rgba(255,45,85,.35)">'
+        +'<div class="card-h" style="margin-bottom:6px">'
+        +'<div class="card-t">'+String(A.LABEL).replace(/</g,'&lt;')
+          +' <span style="color:var(--r1)">· '+st.toUpperCase()+(rec.endedOn?' '+esc(rec.endedOn):'')+'</span></div>'
+        +'<div class="card-n">'+A.FIRM+' · '+A.PRODUCT+' · '+A.SIZE+'</div></div>'
+        +row('paid in vs withdrawn', (A.COST||A.WITHDRAWN)
+              ? (money(A.COST)+' → '+money(A.WITHDRAWN)+' · '
+                 +((A.WITHDRAWN-A.COST)>=0?'+':'')+money(A.WITHDRAWN-A.COST))
+              : '—')
+        +(rec.endReason?'<div class="help">'+esc(rec.endReason)+'</div>':'')
+        +'<div class="grid g3" style="margin-top:8px">'
+        +'<div><label class="lbl">PAID IN — FEES, RESETS</label><input class="inp" type="number" step="0.01" value="'
+          +(A.COST||'')+'" onchange="setAcctNum(\''+id+'\',\'cost\',this.value)"/></div>'
+        +'<div><label class="lbl">WITHDRAWN — CASH RECEIVED</label><input class="inp" type="number" step="0.01" value="'
+          +(A.WITHDRAWN||'')+'" onchange="setAcctNum(\''+id+'\',\'withdrawn\',this.value)"/></div>'
+        +'</div>'
+        +statusBlock
+        +'<div class="help">Its trades stay in the journal and the breakdowns. It is out of the account pickers.</div>'
+        +'</div>';
+    }
     return '<div class="card" style="background:var(--bg3);margin-bottom:8px">'
       +'<div class="card-h" style="margin-bottom:6px">'
       +'<div class="card-t">'+String(A.LABEL).replace(/</g,'&lt;')
         +(A.VERIFIED?'':' <span style="color:var(--o1)">· UNVERIFIED</span>')
         +(id===DB.currentAcct?' <span style="color:var(--acc)">· CURRENT</span>':'')+'</div>'
       +'<div class="card-n">'+A.FIRM+' · '+A.PRODUCT+' · '+A.SIZE+'</div></div>'
-      +row('trailing drawdown', money(A.DRAWDOWN_BUFFER)+(A.XFA?' (tracks balance)':''))
+      +row(/Static/.test(A.PRODUCT)?'max loss — STATIC, does not trail':'trailing drawdown', money(A.DRAWDOWN_BUFFER)+(A.XFA?' (tracks balance)':''))
       +row('your session stop', money(A.DAILY_LOSS_LIMIT)+' · '+RULES.SESSION_STOP_PCT+'% of buffer'
            +(A.PDLL?' · ENFORCED AT THE PLATFORM':' · advisory only'))
       +row('per-trade budget', money(bud)+' · '+mic+' MNQ micro'+(mic===1?'':'s')+' at 12.5 pts')
@@ -3142,6 +3265,7 @@ function renderAccounts(){
         +'" onchange="setAcctField(\''+id+'\',\'commSide\',this.value)"/>'
         +'<div class="tickecho">'+money(commSideOf(DB.accounts[id]||{})*2)+' a contract round turn</div></div>'
       +'</div>'
+      +statusBlock
       +'<button class="btn tiny '+(A.PDLL?'sec':'dgr')+'" style="margin-top:7px" onclick="togglePDLL(\''+id+'\')">'
         +(A.PDLL?'✓ STOP IS ENFORCED AT THE PLATFORM':'STOP IS ADVISORY — TAP IF YOU HAVE SET IT AT THE BROKER')+'</button>'
       +'<div class="btn-row3">'
@@ -3934,8 +4058,14 @@ function migrate(){
       DB.seededIds.push(id);
     }
   });
-  if(!DB.currentAcct||!DB.accounts[DB.currentAcct])
-    DB.currentAcct=Object.keys(DB.accounts)[0]||DEFAULT_ACCT;
+  Object.keys(DB.accounts).forEach(id=>{
+    const a=DB.accounts[id];
+    if(!a.status||ACCT_STATUS.indexOf(a.status)<0) a.status='active';
+    if(a.endedOn===undefined) a.endedOn='';
+    if(a.endReason===undefined) a.endReason='';
+  });
+  if(!DB.currentAcct||!DB.accounts[DB.currentAcct]||!isLive(DB.currentAcct))
+    DB.currentAcct=liveIds()[0]||Object.keys(DB.accounts)[0]||DEFAULT_ACCT;
   DB.schema=5;
   syncCFG();
 
