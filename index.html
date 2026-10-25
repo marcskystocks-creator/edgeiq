@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.2</title>
+<title>EDGEIQ — Journal v5.4.3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.4.2</div>
+    <div class="chip" title="build version">v5.4.3</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -225,6 +225,11 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
           <option value="STALLED">STALLED &#9632;</option>
         </select>
         <label class="nostop" style="margin-top:5px"><input type="checkbox" id="f-pricelie"/> <b style="color:var(--r1)">PRICE LIE</b> — hard veto, ceiling 0</label>
+        <!-- [v5.4.3] STATE TEST. Marc, 24 Oct: trade STATE's side at any score, location +
+             named trigger required, management plan v1 (1 → 2 contracts, $100 risk, add only
+             at breakeven). PRICE LIE (while live) and Card 06 stay no-trade. Every trade on a
+             STATE TEST day is a test trade unless unticked on the trade itself. -->
+        <label class="nostop" style="margin-top:5px"><input type="checkbox" id="f-sttest"/> <b style="color:var(--acc)">STATE TEST DAY</b> — any score on STATE's side · plan v1 sizing</label>
       </div>
       <div>
         <label class="lbl" for="f-phasef">PANEL F — PHASE</label>
@@ -394,6 +399,28 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         <option value="PANIC">Manual — nerves / gave up on it</option>
         <option>Time stop / window closed</option>
       </select></div>
+    </div>
+    <!-- [v5.4.3] How the position was MANAGED, separate from how it ended. The STATE
+         test asks one question: with STATE, does holding beat scalping? -->
+    <div class="grid g3" style="margin-bottom:7px">
+      <!-- [v5.4.3] Which range the LOCATION was measured in. Marc, 24 Oct: "the current
+           trend to the left, unless I am looking at higher time frame levels." Two
+           different rulers; the read has to know which one was used. -->
+      <div><label class="lbl" for="t-rng">RANGE USED FOR LOCATION</label><select class="sel" id="t-rng">
+        <option value="">not set</option>
+        <option value="LEG">Current trend leg to the left (execution TF)</option>
+        <option value="HTF 1H">Higher TF range — 1H</option>
+        <option value="HTF 4H">Higher TF range — 4H</option>
+        <option value="HTF D">Higher TF range — Daily</option>
+      </select></div>
+      <div><label class="lbl" for="t-mgmt">MANAGEMENT</label><select class="sel" id="t-mgmt">
+        <option value="">not set</option>
+        <option value="SCALP">SCALP — took it quickly, all out</option>
+        <option value="HOLD">HOLD — held for the move, all out together</option>
+        <option value="RUNNER">RUNNER — partial / add at breakeven, rest ran</option>
+      </select></div>
+      <div><label class="lbl" for="t-sttest">STATE TEST</label>
+        <label class="nostop" style="margin-top:6px"><input type="checkbox" id="t-sttest"/> count this as a STATE test trade <span id="t-vsstate" style="color:var(--gy)"></span></label></div>
     </div>
 
     <div class="grid g3" style="margin-bottom:4px">
@@ -616,6 +643,9 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">HEAT TAKEN BEFORE IT WORKED — THE STOP-SETTING NUMBER</div><div id="bd-heat"></div></div>
     <div class="bd"><div class="bd-t">WIN RATE BY HEAT TAKEN (MAE AS A FRACTION OF RISK)</div><div id="bd-maeband"></div></div>
     <div class="bd"><div class="bd-t">HOW MUCH OF THE MOVE YOU KEPT, BY EXIT TYPE</div><div id="bd-capture"></div></div>
+    <div class="bd"><div class="bd-t">STATE TEST — WITH vs AGAINST STATE, BY MANAGEMENT (positions)</div><div id="bd-sttest"></div></div>
+    <div class="bd"><div class="bd-t">STATE TEST — BY CARD AT THE LOCK (positions)</div><div id="bd-stcard"></div></div>
+    <div class="bd"><div class="bd-t">STATE TEST — WHICH SETUP WORKS IN WHICH ENVIRONMENT (positions)</div><div id="bd-stsetup"></div></div>
     <div class="bd"><div class="bd-t">PASSED SETUPS — SHARE THAT WOULD HAVE WORKED, BY REASON</div><div id="bd-pass"></div></div>
     <div class="bd"><div class="bd-t">TAKEN vs PASSED AT THE SAME PANEL P SCORE</div><div id="bd-tvp"></div></div>
     <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
@@ -1159,6 +1189,28 @@ function cardName(d){ const c=cardFor(d); return c?('CARD '+c.card):''; }
 function isLegacyDay(d){ return !!(d && d.closed && !pfComplete(d)); }
 
 function isPriceLie(d){ return !!(d && (d.priceLie || d.panelF==='PRICE_LIE')); }
+/* [v5.4.3] PRICE LIE AT A MOMENT. The day carries FIRST FIRED and LAST CLEARED
+   (v5.4.0, DEFECT 79) but every check still read the day-level box, so a trade
+   taken after the veto cleared was flagged as if it went in over it. 23 Oct:
+   fired 09:45, cleared 09:58, first entry 10:02 — fourteen trades carried
+   PRICE LIE VETO and the day's violations jumped 28 → 41. With no clock entered
+   the old behaviour stands: the whole day is vetoed. */
+function hhmmToMins(s){ const m=/^(\d{1,2}):(\d{2})/.exec(String(s||'')); return m?(+m[1]*60+ +m[2]):null; }
+function priceLieAt(d,mins){
+  if(!isPriceLie(d)) return false;
+  if(mins==null) return true;
+  const f=hhmmToMins(d.plFired), c=hhmmToMins(d.plCleared);
+  if(f!=null&&mins<f) return false;
+  if(c!=null&&mins>=c) return false;
+  return true;
+}
+/* [v5.4.3] STATE TEST helpers. STATE's side: CONTRACTING → SHORT, EXPANDING →
+   LONG, STALLED → none. A test trade is any trade on a STATE TEST day unless it
+   was unticked on the trade, or any trade ticked on its own. */
+function stateSide(d){ return d&&d.panelF==='CONTRACTING'?'SHORT':(d&&d.panelF==='EXPANDING'?'LONG':''); }
+function vsStateOf(t,d){ const s=stateSide(d); return !s?'':(t.dir===s?'WITH':'AGAINST'); }
+function isStTest(t,d){ return t.stTest===true || (t.stTest!==false && !!(d&&d.stTestDay)); }
+const PLAN_MAX=2;
 function pfLabel(d){
   const bits=[d.panelF||'not set'];
   if(d.phaseF) bits.push(d.phaseF);
@@ -1211,7 +1263,7 @@ function paintCard(d){
     ' · size '+(c.size==='full'?'full ladder':'base only, no scaling')+
     ' · <span style="opacity:.8">'+d.panelF+' / '+d.phaseF+' / '+d.momF+'</span>';
 }
-function blankDay(d){return {date:d,panelF:'',phaseF:'',momF:'',priceLie:false,ceilScore:'',ceilMin:'',plFired:'',plCleared:'',plFires:'',vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
+function blankDay(d){return {date:d,panelF:'',phaseF:'',momF:'',priceLie:false,ceilScore:'',ceilMin:'',plFired:'',plCleared:'',plFires:'',stTestDay:false,vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -1308,10 +1360,10 @@ function windowAt(t){ return W.find(w=>t>=w.a&&t<w.b)||W[W.length-1]; }
    An early return is the shape of the bug. Each rule now narrows a running
    cap and the smallest wins, so no rule can ever be skipped by one above it
    and no rule can raise what another has lowered. */
-function ceilingFor(d,A){
+function ceilingFor(d,A,mins){
   A=A||CFG;
   /* PRICE LIE is the one absolute. Nothing below can matter. */
-  if(isPriceLie(d)) return A.CEILING.PRICE_LIE;
+  if(mins==null?isPriceLie(d):priceLieAt(d,mins)) return A.CEILING.PRICE_LIE;
   if(!d.panelF)     return A.CEILING.NO_PANEL_F;
 
   const esg=(d.esg||[]).filter(Boolean).length;
@@ -1353,15 +1405,17 @@ const SOFT_FLAGS=['F2 NOT CHECKED','LOCATION NOT RECORDED','SETUP NOT RECORDED',
                   /* [v5.4.1] Information, not a broken rule. */
                   'FULL-SIZE NQ','FULL-SIZE ES',
                   /* [v5.4.2] Allowed by the account's own minimum — recorded, not punished. */
-                  '3/6 TEST TRADE'];
+                  '3/6 TEST TRADE',
+                  /* [v5.4.3] Information on a STATE test trade, not broken rules. */
+                  'STATE TEST','AGAINST STATE','DECK NO-TRADE CARD'];
 function isHard(f){ return SOFT_FLAGS.indexOf(String(f).split(' — ')[0])<0; }
 function hardCount(t){ return (t.flags||[]).filter(isHard).length; }
 function softCount(t){ return (t.flags||[]).filter(f=>!isHard(f)).length; }
 
 // Effective ceiling after the ratchet. A prior HARD violation drops it to base.
-function ratchetedCeiling(d,prior,A){
+function ratchetedCeiling(d,prior,A,mins){
   A=A||CFG;
-  let c=ceilingFor(d,A);
+  let c=ceilingFor(d,A,mins);
   if(prior.some(p=>hardCount(p)>0)) c=Math.min(c,A.BASE_CONTRACTS);
   return c;
 }
@@ -1518,7 +1572,7 @@ function tradeCap(d,prior,conf,stopPts,ins,mins,A){
     if(conf!=='6/6')        return 0;   // out of it, but the rule is 6/6 only
   }
 
-  let cap=Math.floor(ratchetedCeiling(d,prior,A)*frac);
+  let cap=Math.floor(ratchetedCeiling(d,prior,A,mins)*frac);
   if(cap<1) cap=1;
 
   if(lo!==null)       cap=A.BASE_CONTRACTS;   // returning from lockout: base size
@@ -1528,7 +1582,7 @@ function tradeCap(d,prior,conf,stopPts,ins,mins,A){
   const prev=POS[POS.length-1];
   if(prev&&prev.res==='LOSS') cap=Math.min(cap,prev.qty);
 
-  cap=Math.min(cap,A.MAX_CONTRACTS,ratchetedCeiling(d,prior,A));
+  cap=Math.min(cap,A.MAX_CONTRACTS,ratchetedCeiling(d,prior,A,mins));
 
   const rc=riskCapFor(stopPts,ins,A);
   if(rc!==null) cap=Math.min(cap,rc);
@@ -1541,6 +1595,16 @@ function tradeCap(d,prior,conf,stopPts,ins,mins,A){
    What changes is where the number comes from: dollars over the stop.
    No stop entered = base size. Sizing without a stop is the one thing this
    mode cannot do, and it fails closed rather than guessing. */
+/* [v5.4.3] STATE TEST size: plan v1. $RISK_PER_TRADE over the stop, never above
+   two contracts, and nothing inside the 3-loss lockout — the lockout is about the
+   trader and the test does not suspend it. No stop entered = one contract. */
+function stTestCap(d,prior,t,A){
+  const lo=lockoutEnd(prior,t.mins);
+  if(lo!==null&&t.mins!=null&&t.mins<lo) return 0;
+  const s=+t.stopPts||0;
+  const c= s>0 ? Math.floor((+A.RISK_PER_TRADE||100)/(s*pv(t.ins))) : 1;
+  return Math.max(0,Math.min(PLAN_MAX,c,A.MAX_CONTRACTS));
+}
 function tradeCapRisk(d,prior,conf,stopPts,ins,mins,A){
   if(!(RISK_CONF[conf]>0)) return 0;
   if(conf==='3/6'&&A.MIN_SCORE>3) return 0;
@@ -1549,7 +1613,7 @@ function tradeCapRisk(d,prior,conf,stopPts,ins,mins,A){
     const got=CONF_N[conf];
     if(got!=null&&cd.min&&got<effMin(cd,A)) return 0;     // below this card's minimum
   }
-  const ceil=ratchetedCeiling(d,prior,A);
+  const ceil=ratchetedCeiling(d,prior,A,mins);
   if(ceil<=0) return 0;
 
   const POS=resolvedPositions(prior,mins);
@@ -1573,14 +1637,24 @@ function tradeCapRisk(d,prior,conf,stopPts,ins,mins,A){
   return Math.max(0,Math.min(cap,A.MAX_CONTRACTS,ceil));
 }
 
+/* [v5.4.3] Minutes hide overlaps. 23 Oct: a 3-lot opened 10:52:39 and closed
+   10:53:35; a second 3-lot opened 10:53:22 and closed 10:53:35. In minutes the
+   second opens at 10:53 as the first closes at 10:53, closes settle first, and
+   the book never shows 6 — the broker file does. When an imported row carries
+   seconds at both ends, order by seconds (as fractional minutes). */
+function tKeys(t){
+  if(t.sec!=null&&t.outSec!=null&&t.outSec>=t.sec) return {in:t.sec/60,out:t.outSec/60};
+  const out=(t.outMins!=null&&t.outMins>=t.mins)?t.outMins:t.mins;
+  return {in:t.mins,out:out};
+}
 // Peak concurrent position across the day + how much was already open at each entry.
 function concurrency(d){
   const ev=[];
   d.trades.forEach((t,i)=>{
-    const out=(t.outMins!=null&&t.outMins>=t.mins)?t.outMins:t.mins;
+    const tk=tKeys(t);
     const g=grpKey(t,i);
-    ev.push({t:t.mins,q:+t.qty||0,i:i,g:g,open:true});
-    ev.push({t:out,   q:-(+t.qty||0),i:i,g:g,open:false});
+    ev.push({t:tk.in, q:+t.qty||0,i:i,g:g,open:true});
+    ev.push({t:tk.out,q:-(+t.qty||0),i:i,g:g,open:false});
   });
   ev.sort((a,b)=> a.t-b.t || (a.open?1:-1));   // closes settle before opens at the same minute
   let run=0,peak=0; const openAt={}, byGrp={};
@@ -1607,8 +1681,9 @@ function analyze(t,prior,d,openBefore){
      trade was taken on — not the account currently on screen. This single line
      is what makes a day that spans two accounts score correctly. */
   const A=A_of(t,d);
-  const ceil=ratchetedCeiling(d,prior,A);
-  const cap=tradeCap(d,prior,t.conf,t.stopPts,t.ins,t.mins,A);
+  const TEST=isStTest(t,d), VS=vsStateOf(t,d);
+  const ceil=TEST?PLAN_MAX:ratchetedCeiling(d,prior,A,t.mins);
+  const cap=TEST?stTestCap(d,prior,t,A):tradeCap(d,prior,t.conf,t.stopPts,t.ins,t.mins,A);
 
   /* [v4.8.2] A position that scaled out in four pieces made ONE judgment about
      window, confluence, location, setup, trigger, size and risk. Repeating those
@@ -1625,11 +1700,23 @@ function analyze(t,prior,d,openBefore){
   if(t.mins>=960) f.push('AFTER HOURS');
 
   // ── PANEL F / CONFLUENCE
-  if(isPriceLie(d)) f.push('PRICE LIE VETO');
+  if(priceLieAt(d,t.mins)) f.push('PRICE LIE VETO');
   if(!d.panelF) f.push('PANEL F NOT LOCKED');
   /* [v5.3.0] The governing card sets the minimum, not one global rule. */
   if(d.panelF&&!isLegacyDay(d)&&!pfComplete(d)) f.push('PANEL F INCOMPLETE — PHASE/MOMENTUM NOT RECORDED, CARD UNKNOWN');
-  {
+  if(TEST){
+    /* [v5.4.3] STATE TEST. The score is recorded, never judged: the test exists
+       to measure trades the score would refuse. What still binds: PRICE LIE while
+       live (above), Card 06 (lost on both days it locked, 7 and 23 Oct), STALLED
+       (no STATE side to test). Every other deck no-trade card is recorded as
+       information so the read can split on it later. */
+    f.push('STATE TEST — '+(VS?VS+' STATE':'no STATE side')+', score '+(t.conf||'not recorded')+' recorded, not judged');
+    const cd=cardFor(d);
+    if(d.panelF==='STALLED') f.push('STALLED — STATE TEST HAS NO SIDE');
+    else if(cd&&cd.card==='06') f.push('CARD 06 — NO TRADE, STATE TEST EXCLUDES IT');
+    else if(cd&&isVeto(cd)) f.push('DECK NO-TRADE CARD — '+cd.card+', allowed under the STATE test');
+    if(VS==='AGAINST') f.push('AGAINST STATE — counter-STATE test trade, read separately');
+  } else {
     const cd=cardFor(d);
     if(isVeto(cd))           f.push('CARD '+cd.card+' — '+cd.side+', NO ENTRY PERMITTED AT ANY SCORE');
     else if(isWatchState(cd)&&!A.RISK_MODE) f.push('CARD '+cd.card+' IS A WATCH STATE — 50% size is 0 at a 1-contract base');
@@ -1640,10 +1727,12 @@ function analyze(t,prior,d,openBefore){
       if(cd.side.indexOf('SHORT')===0&&t.dir==='LONG') f.push('CARD '+cd.card+' IS SHORT-ONLY — took a long');
     }
   }
+  if(!TEST){
   if(d.panelF==='CONTRACTING'&&['4/6','3/6','2/6 or less'].includes(t.conf)) f.push('CONTRACTING NEEDS 5/6');
   if(isTest3(t,A)) f.push('3/6 TEST TRADE — below the system 4/6, allowed on '+A.LABEL+' at half risk');
   else if(['3/6','2/6 or less'].includes(t.conf)) f.push('BELOW 4/6 MIN');
-  if(esg<2&&(t.conf!=='6/6'||gqty>1)) f.push('ESG RESTRICTED');
+  }
+  if(esg<2&&(TEST?gqty>1:(t.conf!=='6/6'||gqty>1))) f.push('ESG RESTRICTED');
   if(!t.f2) f.push('F2 NOT CHECKED');
 
   /* ── SIZE ─────────────────────────────────────────────────────────────────
@@ -1653,6 +1742,11 @@ function analyze(t,prior,d,openBefore){
      was ever the size on risk. With no score there is no fraction, so the cap is
      unknowable rather than 0: say that, and judge size once it is filled in. */
   if(!t.conf) f.push('PANEL P NOT RECORDED');
+  if(TEST){
+    if(cap===0) f.push('SIZE CAP 0 — STATE TEST: inside the 3-loss lockout, or the stop is too wide for $'+(A.RISK_PER_TRADE||100)+' on one contract');
+    else if(gqty>cap) f.push('OVER SIZE CAP — plan v1 allows '+cap+' at this stop, took '+gqty);
+  }
+  else if(!t.conf){}
   else if(cap===0) f.push('SIZE CAP 0 — NO TRADE PERMITTED');
   else if(gqty>cap) f.push('OVER SIZE CAP — max '+cap+', took '+gqty);
   if(gqty>A.MAX_CONTRACTS) f.push('OVER THE FIRM MAX OF '+A.MAX_CONTRACTS+' ON '+A.LABEL);
@@ -1660,8 +1754,14 @@ function analyze(t,prior,d,openBefore){
      dashboard is scoring every number above off an assumption. Say so on the
      trade rather than only in a settings screen nobody reopens. */
   if(!A.VERIFIED) f.push('ACCOUNT UNVERIFIED — '+A.LABEL+' preset has not been confirmed against the dashboard');
+  if(TEST){
+    /* Plan v1: an add is allowed (AVERAGED DOWN below catches the one that is
+       not); what binds is the two-contract total. */
+    if(openBefore+gqty>PLAN_MAX) f.push('OVER PLAN MAX — '+(openBefore+gqty)+' contracts open, plan v1 allows '+PLAN_MAX);
+  } else {
   if(openBefore>0) f.push('PYRAMID — '+openBefore+' already open');
   if(openBefore+gqty>ceil&&ceil>0) f.push('PEAK '+(openBefore+gqty)+' OVER CEILING '+ceil);
+  }
 
   /* [v5.4.1] THREE FLAGS FROM THE NIGHT OF 21 OCT.
      All four Tradeify accounts went in one session: an unplanned NQ long,
@@ -1729,6 +1829,10 @@ function analyze(t,prior,d,openBefore){
      the self-imposed day stop. State both: the % of the session budget tells you
      the trade is oversized, the % of the buffer tells you what it costs if the
      whole thing goes wrong. */
+  else if(TEST){
+    const allowed=+A.RISK_PER_TRADE||100;
+    if(risk>allowed+0.01) f.push('RISK $'+risk.toFixed(2)+' OVER THE $'+allowed.toFixed(2)+' STATE TEST RISK — plan v1');
+  }
   else if(A.RISK_MODE){
     const allowed=riskDollarsFor(d,t.conf,A);
     if(risk>allowed+0.01) f.push('RISK $'+risk.toFixed(2)+' OVER THE $'+allowed.toFixed(2)
@@ -1739,7 +1843,7 @@ function analyze(t,prior,d,openBefore){
       +A.RISK_BUDGET_PCT+'%, that stop affords '+rc
       +' — $'+risk.toFixed(2)+' is '+(risk/A.DRAWDOWN_BUFFER*100).toFixed(1)+'% OF THE $'
       +A.DRAWDOWN_BUFFER+' BUFFER ON '+A.LABEL);
-  if(d.panelF==='CONTRACTING'&&stop>A.STOP_CAP_TICKS*A.TICK_SIZE) f.push('STOP OVER '+A.STOP_CAP_TICKS+'-TICK CAP');
+  if(!TEST&&d.panelF==='CONTRACTING'&&stop>A.STOP_CAP_TICKS*A.TICK_SIZE) f.push('STOP OVER '+A.STOP_CAP_TICKS+'-TICK CAP');
   }
 
   // ── EXIT DATA
@@ -2051,9 +2155,9 @@ function peakOpenRisk(d,acctId){
   if(!T.length) return {peak:0,atMins:null,lots:0,exact:true,byIndex:{}};
   const ev=[];
   T.forEach((t,i)=>{
-    const out=(t.outMins!=null&&t.outMins>=t.mins)?t.outMins:t.mins;
-    ev.push({t:t.mins,i:i,open:true});
-    ev.push({t:out,  i:i,open:false});
+    const tk=tKeys(t);
+    ev.push({t:tk.in, i:i,open:true});
+    ev.push({t:tk.out,i:i,open:false});
   });
   ev.sort((a,b)=> a.t-b.t || (a.open?1:-1));   // closes settle before opens
 
@@ -2096,6 +2200,7 @@ function recompute(d){
     const a=analyze(t,out.slice(),d,ob);
     t.window=a.window; t.flags=a.flags; t.streakBefore=a.streakBefore;
     t.cap=a.cap; t.ceil=a.ceil; t.openBefore=ob;
+    t.vsState=vsStateOf(t,d); t.isTest=isStTest(t,d);
     t.risk=a.risk; t.riskPct=a.riskPct; t.hold=a.hold;
     t.pts=a.pts; t.rMult=a.rMult; t.maeR=a.maeR; t.headroom=a.headroom; t.capture=a.capture;
     out.push(t);
@@ -2160,8 +2265,13 @@ function formAcctId(){
 }
 function formAcct(){ return resolveAcct(formAcctId()); }
 
+function formIsTest(){ const e=document.getElementById('t-sttest'); return !!(e&&e.checked); }
 function liveCap(){
   const d=day();
+  const mins=(VIEW===etDate()?etMins():parseMins(document.getElementById('t-time').value));
+  /* [v5.4.3] A STATE test trade is sized by plan v1, not by the score. */
+  if(formIsTest()) return stTestCap(d,d.trades.slice(),
+    {mins:mins,stopPts:+document.getElementById('t-stop').value||0,ins:document.getElementById('t-ins').value},formAcct());
   return tradeCap(d,d.trades.slice(),
     document.getElementById('t-conf').value,
     +document.getElementById('t-stop').value||0,
@@ -2317,8 +2427,16 @@ function preflight(){
      journal will not quietly pretend the decision was never made. */
   if(!isLive(A.ID)) v.push(A.LABEL+' is '+String((DB.accounts[A.ID]||{}).status||'').toUpperCase()+' — it cannot take a trade. Pick a live account on the trade.');
   if(d.done) v.push('YOU CALLED THE DAY DONE — on every account. Nothing after this was part of the plan.');
-  if(isPriceLie(d)) v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
-  {
+  const TESTF=formIsTest();
+  if(priceLieAt(d,t)) v.push('PANEL F PRICE LIE — hard veto, no entries at any score');
+  if(TESTF){
+    const cd=cardFor(d);
+    if(d.panelF==='STALLED') v.push('STALLED — the STATE test has no side today');
+    else if(cd&&cd.card==='06') v.push('CARD 06 — excluded from the STATE test (lost on both days it locked)');
+    else if(cd&&isVeto(cd)) wn.push('CARD '+cd.card+' is a deck no-trade — allowed under the STATE test, recorded for the read');
+    const ss=stateSide(d);
+    if(ss) wn.push('STATE TEST — STATE side is '+ss+'. Plan v1: 1 contract, $'+(A.RISK_PER_TRADE||100)+' stop, second contract only once the first is at breakeven, max '+PLAN_MAX+'.');
+  } else {
     const cd=cardFor(d);
     if(isVeto(cd)) v.push('CARD '+cd.card+' — '+cd.side+(cd.why?': '+cd.why:'')+'. This is the card the three Panel F readings select; it does not move with the score');
     if(isWatchState(cd)&&!A.RISK_MODE) v.push('CARD '+cd.card+' — '+cd.side+', but at 50% size, which is zero contracts at your 1-contract base. The setup is real and you cannot take it');
@@ -2340,7 +2458,7 @@ function preflight(){
      TRADES flag anywhere in the log — the screen and the record disagreeing
      about the same rule. */
   if(positionsOf(d.trades||[]).length>=A.MAX_TRADES) v.push(A.MAX_TRADES+'-trade cap reached');
-  if(cap===0&&!v.length) v.push('Size cap is 0 at this Panel P score — no trade permitted');
+  if(cap===0&&!v.length) v.push(TESTF?'STATE test size is 0 — inside the lockout, or the stop is too wide for $'+(A.RISK_PER_TRADE||100)+' on one contract':'Size cap is 0 at this Panel P score — no trade permitted');
 
   if(!A.VERIFIED) wn.push(A.LABEL+' is UNVERIFIED — every number below is a catalog preset, not something you have checked against the dashboard');
   /* A session stop nothing will act on is a note to yourself. Say which one
@@ -2406,7 +2524,9 @@ function paintAcctInfo(A){
   const bits=[money(A.DRAWDOWN_BUFFER)+' buffer',
               'stop '+money(A.DAILY_LOSS_LIMIT),
               money(budgetOf(A))+'/trade',
-              'ceil '+A.CEILING.EXPANDING_3,
+              /* [v5.4.3] A risk-mode account has no ladder; printing one ("ceil 3")
+                 next to a cap of 20 read as a contradiction. */
+              (A.RISK_MODE?'risk-sized':'ceil '+A.CEILING.EXPANDING_3),
               'firm max '+A.MAX_CONTRACTS];
   if(A.FIRM_DLL) bits.push('firm DLL '+money(A.FIRM_DLL));
   bits.push(A.PDLL?'stop enforced at platform':'stop advisory only');
@@ -2444,7 +2564,57 @@ function go(p){
 function setDay(v){ if(!v) return; VIEW=v; render(); }
 function shiftDay(n){ const d=new Date(VIEW+'T12:00:00'); d.setDate(d.getDate()+n); VIEW=d.toISOString().slice(0,10); render(); }
 
+/* [v5.4.3] "OTHER — TYPE IT". Marc, 24 Oct: every free-meaning dropdown takes a
+   value that is not on the list. A setup the menu does not know about used to be
+   forced into the nearest wrong option or left blank — and blank is what made 10
+   of 14 trades on 23 Oct unreadable. Typed values are saved to DB.customOpts and
+   offered again next time, so a new setup becomes a real category.
+   NOT on instrument, direction, Panel P score, F2, location or result: the
+   violation engine reads those exact values, and a typed one would silently
+   switch its rules off. */
+const CUSTOM_SELECTS={'t-rng':'the range you measured location in','t-setup':'the setup','t-trig':'the trigger','t-exit':'the exit type',
+  't-tact':'what you did with the target','t-mgmt':'how you managed it','x-why':'why you did not take it',
+  'dd-fix':'the one thing to fix'};
+function customDataValues(id){
+  const v=[], k={'t-rng':'rng','t-setup':'setup','t-trig':'trig','t-exit':'exit','t-tact':'tact','t-mgmt':'mgmt'}[id];
+  Object.keys(DB.days||{}).forEach(dk=>{ const d=DB.days[dk];
+    if(k) (d.trades||[]).forEach(t=>{ if(t[k]) v.push(t[k]); });
+    if(id==='x-why') (d.passes||[]).forEach(p=>{ if(p.why) v.push(p.why); });
+    if(id==='dd-fix'&&d.fix) v.push(d.fix);
+  });
+  return v;
+}
+function syncCustomOptions(){
+  DB.customOpts=DB.customOpts||{};
+  Object.keys(CUSTOM_SELECTS).forEach(id=>{
+    const sel=document.getElementById(id); if(!sel) return;
+    let other=sel.querySelector('option[value="__CUSTOM__"]');
+    if(!other){ other=document.createElement('option'); other.value='__CUSTOM__'; other.textContent='OTHER — type it…'; sel.appendChild(other); }
+    const have=new Set(Array.from(sel.options).map(o=>o.value));
+    (DB.customOpts[id]||[]).concat(customDataValues(id)).forEach(v=>{
+      if(!v||have.has(v)) return; have.add(v);
+      const o=document.createElement('option'); o.value=v; o.textContent='✎ '+v; sel.insertBefore(o,other);
+    });
+    if(!sel.dataset.customBound){
+      sel.dataset.customBound='1'; sel.dataset.prev=sel.value;
+      sel.addEventListener('focus',()=>{ sel.dataset.prev=sel.value; });
+      sel.addEventListener('change',()=>{
+        if(sel.value!=='__CUSTOM__'){ sel.dataset.prev=sel.value; return; }
+        const s=(window.prompt('Type '+CUSTOM_SELECTS[id]+':','')||'').trim();
+        if(s){
+          DB.customOpts[id]=DB.customOpts[id]||[];
+          if(DB.customOpts[id].indexOf(s)<0) DB.customOpts[id].push(s);
+          syncCustomOptions(); sel.value=s;
+        } else sel.value=sel.dataset.prev||'';
+        sel.dataset.prev=sel.value;
+        sel.dispatchEvent(new Event('change'));
+        S.set(KEY,JSON.stringify(DB));
+      });
+    }
+  });
+}
 function render(){
+  syncCustomOptions();
   const d=day();
   document.getElementById('c-clock').textContent=fmtET();
   document.getElementById('d-date').value=VIEW;
@@ -2455,6 +2625,8 @@ function render(){
   document.getElementById('f-phasef').value=d.phaseF||'';
   document.getElementById('f-momf').value=d.momF||'';
   document.getElementById('f-pricelie').checked=isPriceLie(d);
+  document.getElementById('f-sttest').checked=!!d.stTestDay;
+  { const ts=document.getElementById('t-sttest'); if(ts&&EDIT_IX<0) ts.checked=!!d.stTestDay; }
   /* [v5.4.0] Repaint the six new day inputs. Omitting this is how a value from
      the PREVIOUS day stays on screen while the day object underneath holds
      something else — the exact shape of the v5.3.1 dropdown defect, where the
@@ -2608,6 +2780,9 @@ function render(){
     const f2=(x.f2==='AGREES'?'A':x.f2==='DISAGREES'?'D':x.f2==='FLAT'?'F':'—');
     const meta=abadge
       +(x.imported?'<b style="color:var(--acc)">IMPORTED</b> · ':'')
+      +(x.isTest?'<b style="color:var(--acc)">STATE TEST</b> · ':'')
+      +(x.vsState?(x.vsState==='WITH'?'with STATE · ':'<b style="color:var(--y1)">AGAINST STATE</b> · '):'')
+      +(x.mgmt?x.mgmt+' · ':'')
       +(x.setup?x.setup:'no setup')+(x.loc?' · '+x.loc:'')+' · '+x.ins+' · '+x.window
       +(x.risk?' · risk '+money(x.risk)+' ('+Math.round(x.riskPct)+'%)':'')
       +(x.rMult!=null?' · '+(x.rMult>=0?'+':'')+x.rMult.toFixed(2)+'R':'')
@@ -3077,6 +3252,49 @@ function renderStats(){
       value:Math.round(avg*100)+'% kept · '+g.n+'t'+(g.rn?' · left '+(g.run/g.rn).toFixed(1)+'pt':'')};
   }),'Kept = points taken as a share of the best the trade offered. "Left" is the average further run after the exit. A low share with a long run is an exit problem, not an entry problem.');
 
+  /* ── [v5.4.3] STATE TEST ────────────────────────────────────────────────
+     The question set 24 Oct: trading STATE's side, does HOLDING beat SCALPING,
+     and do counter-STATE trades pay at all? Unit is the POSITION (one decision),
+     net of commission. "Ran on" is the furthest further move after the exit,
+     the number that says a scalp left the hold on the table. Read at 20 WITH
+     positions; nothing here is a finding before that. */
+  { const P={};
+    T.forEach(t=>{ if(!t.isTest) return;
+      const key=t.date+'|'+(t.grp||('#'+t.mins+'|'+t.inPx+'|'+t.dir));
+      const p=P[key]||(P[key]={vs:t.vsState||'no side',mgmt:t.mgmt||'not set',pnl:0,run:0,card:'',date:t.date});
+      /* A test trade that broke the test's own rule (Card 06, PRICE LIE live,
+         STALLED) is not a sample of the hypothesis. Count it, keep it out. */
+      if((t.flags||[]).some(f=>/^(CARD 06 — NO TRADE, STATE TEST|PRICE LIE VETO|STALLED — STATE TEST)/.test(f))) p.bad=true;
+      p.pnl+=netOf(t); p.run=Math.max(p.run,+t.postRun||0);
+      const c=cardFor(DB.days[t.date]); p.card=c?c.card:'no card';
+      { const dd=DB.days[t.date];
+        p.env=(dd.panelF==='CONTRACTING'?'CON':dd.panelF==='EXPANDING'?'EXP':(dd.panelF||'?'))+'/'+(dd.phaseF||'?');
+        if(!p.setup) p.setup=t.setup||'setup not recorded'; }
+    });
+    const bad=Object.values(P).filter(p=>p.bad).length;
+    Object.keys(P).forEach(k=>{ if(P[k].bad) delete P[k]; });
+    const roll=(keyFn)=>{ const g={};
+      Object.values(P).forEach(p=>{ const k=keyFn(p);
+        const x=g[k]||(g[k]={n:0,w:0,net:0,run:0,rn:0}); x.n++; if(p.pnl>0)x.w++; x.net+=p.pnl;
+        if(p.run>0){x.run+=p.run;x.rn++;} });
+      return Object.keys(g).sort((a,b)=>g[b].n-g[a].n).map(k=>{ const x=g[k], wr=Math.round(x.w/x.n*100);
+        return {label:k,bar:wr,cls:x.n<20?'':(x.net>0?'hi':'lo'),
+          value:x.n+' pos · '+wr+'% · '+money(x.net)+(x.rn?' · ran on '+(x.run/x.rn).toFixed(1)+'pt':'')}; }); };
+    const n=Object.keys(P).length, nw=Object.values(P).filter(p=>p.vs==='WITH').length;
+    const stNote=
+      (n?('STATE test positions: '+n+' ('+nw+' with STATE). Read point: 20 WITH positions — '+(nw>=20?'reached.':(20-nw)+' to go. Not a finding yet.')):'No STATE test trades yet. Tick STATE TEST DAY in Day Setup, or the box on a trade.')
+      +(bad?' '+bad+' position'+(bad>1?'s':'')+' left out: taken against the test rules (Card 06, live PRICE LIE or STALLED).':'');
+    const stRows=roll(p=>p.vs+' STATE · '+p.mgmt);
+    bdStat('bd-sttest',stRows,stNote);
+    if(!stRows.length) document.getElementById('bd-sttest').innerHTML+='<div class="help">'+stNote+'</div>';
+    /* Setup x environment (STATE/PHASE at the lock). Four environments times a
+       dozen setups is a thin grid: read a cell at 10 positions, not before. */
+    bdStat('bd-stsetup',roll(p=>p.setup+' · '+p.env+' · '+p.vs),
+      'Environment = STATE/PHASE at the 09:45 lock. A cell means little under 10 positions — this panel needs months, not weeks. Record the SETUP on every trade or it lands in "setup not recorded".');
+    bdStat('bd-stcard',roll(p=>'Card '+p.card+' · '+p.vs+' STATE'),
+      'Cards 07/08 (CONTRACTING/BEAR) carried the backtest; Card 06 is excluded from the test. One falling market so far — watch for the first rising one.');
+  }
+
   /* ── PASSED SETUPS ─────────────────────────────────────────────────────
      The half of the distribution a normal journal discards. Grouped by the
      reason, so a rule that keeps blocking winners and a rule that keeps
@@ -3488,6 +3706,9 @@ function editTrade(i){
   document.getElementById('t-res').value=t.res||'WIN';
   document.getElementById('t-pnl').value=(t.pnl!==undefined?t.pnl:'');
   document.getElementById('t-exit').value=t.exit||'';
+  document.getElementById('t-mgmt').value=t.mgmt||'';
+  document.getElementById('t-rng').value=t.rng||'';
+  document.getElementById('t-sttest').checked=isStTest(t,d);
   document.getElementById('t-note').value=t.note||'';
   document.getElementById('t-mae').value=(+t.mae||'')||'';
   document.getElementById('t-mfe').value=(+t.mfe||'')||'';
@@ -3539,6 +3760,11 @@ function addTrade(override){
     res:document.getElementById('t-res').value,
     pnl:+document.getElementById('t-pnl').value||0,
     exit:document.getElementById('t-exit').value,
+    mgmt:document.getElementById('t-mgmt').value,
+    rng:document.getElementById('t-rng').value,
+    /* Stored explicitly only when it differs from the day: the day toggle stays
+       the single switch for an ordinary test day. */
+    stTest:(document.getElementById('t-sttest').checked===!!d.stTestDay)?undefined:document.getElementById('t-sttest').checked,
     note:document.getElementById('t-note').value.trim(),
     override:!!override,
     window:'',flags:[],streakBefore:0
@@ -3553,6 +3779,8 @@ function addTrade(override){
        every imported row to complete it. Carry them through. */
     if(old.inPx!=null)  t.inPx=old.inPx;
     if(old.outPx!=null) t.outPx=old.outPx;
+    if(old.sec!=null)    t.sec=old.sec;          // [v5.4.3] keep the broker's seconds
+    if(old.outSec!=null) t.outSec=old.outSec;
     t.imported=!!old.imported;                        // an edited import is still an import
     t.override=!!override||!!old.override;
     d.trades[EDIT_IX]=t;
@@ -3565,6 +3793,9 @@ function addTrade(override){
   document.getElementById('t-nostop').checked=false;
   document.getElementById('t-tp').value=''; document.getElementById('t-tact').value='';
   document.getElementById('t-grp').value='';
+  document.getElementById('t-mgmt').value='';
+  document.getElementById('t-sttest').checked=!!d.stTestDay;
+  /* RANGE USED is a habit, not a per-trade choice — leave it set for the next trade. */
   save();
 }
 /* ---------- SETUPS PASSED ON ---------- */
@@ -3633,7 +3864,9 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
      behaviour (blank when ungrouped) so no downstream read of it changes. */
   'pos_id','m1_below_min','m2_over_ceiling','m3_no_trigger','m_below_card_min',
   'score_ceiling','ceiling_min','ceiling_margin',
-  'price_lie_fired_at','price_lie_cleared_at','price_lie_fires']);
+  'price_lie_fired_at','price_lie_cleared_at','price_lie_fires',
+  /* [v5.4.3] Appended, never inserted. */
+  'state_test','vs_state','management','location_range']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* [v5.4.0] The six DAY columns that follow the metric columns. Same contract as
@@ -3674,7 +3907,8 @@ function buildRows(wide){
            NOT 0. A blank says "no parcel here"; a 0 would say "a parcel that did
            not violate", and the denominator counts parcels where contracts > 0. */
         .concat(['','','','',''])
-        .concat(dayCols(d))):base);
+        .concat(dayCols(d))
+        .concat([(d.stTestDay?'DAY':''),'','',''])):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -3712,7 +3946,8 @@ function buildRows(wide){
                  m2OverCeiling(d,t)?1:0,
                  m3NoTrigger(d,t)?1:0,
                  mBelowCardMin(d,t)?1:0])
-        .concat(dayCols(d))):base);
+        .concat(dayCols(d))
+        .concat([(isStTest(t,d)?'YES':''),vsStateOf(t,d),(t.mgmt||''),(t.rng||'')])):base);
     });
   });
   return out;
@@ -4022,6 +4257,7 @@ function emitTrades(byDay,stops,open){
 
       trades.push({
         date:dt, mins:e.mins, outMins:e.outMins, grp:e.grp,
+        sec:(e.sec!=null?e.sec:null), outSec:(e.outSec!=null?e.outSec:null),
         ins:e.prod, dir:e.dir>0?'LONG':'SHORT', qty:Math.round(e.qty),
         conf:'', f2:'', loc:'', setup:'', trig:'',
         stopPts:Math.round(stopPts*4)/4, tp:0, tact:'', noStop:false,
@@ -4368,6 +4604,11 @@ function paintCeilMargin(d){
   }
 }
 
+document.getElementById('f-sttest').addEventListener('change',e=>{
+  const d=day(); d.stTestDay=!!e.target.checked;
+  const ts=document.getElementById('t-sttest'); if(ts&&EDIT_IX<0) ts.checked=d.stTestDay;
+  recompute(d); save();
+});
 document.getElementById('f-pricelie').addEventListener('change',e=>{
   const d=day();
   d.priceLie=e.target.checked;
@@ -4429,7 +4670,7 @@ document.getElementById('dd-excl').addEventListener('change',e=>{
   else d.note=e.target.value;
   save();
 }));
-['t-conf','t-ins'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{preflight();paintDerived();}));
+['t-conf','t-ins','t-sttest'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{preflight();paintDerived();}));
 document.getElementById('t-stop').addEventListener('input',()=>{preflight();paintDerived();});
 ['t-mae','t-mfe','t-run','t-pnl','t-qty','t-res'].forEach(id=>{
   const e=document.getElementById(id); if(e){ e.addEventListener('input',paintDerived); e.addEventListener('change',paintDerived); }
