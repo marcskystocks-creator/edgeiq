@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.3</title>
+<title>EDGEIQ — Journal v5.4.4</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.4.3</div>
+    <div class="chip" title="build version">v5.4.4</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -413,6 +413,26 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
         <option value="HTF 4H">Higher TF range — 4H</option>
         <option value="HTF D">Higher TF range — Daily</option>
       </select></div>
+      <!-- [v5.4.4] Marc, 29 Oct: the fills show a price, not WHERE in the level it went in.
+           Measured on the zone the entry was taken from, low = 0%, high = 100%, the same way for
+           longs and shorts so it is a fact about price, not about intent. -->
+      <div><label class="lbl" for="t-zpt">ENTRY POINT IN THE ZONE (FVG / OB)</label><select class="sel" id="t-zpt">
+        <option value="">not set</option>
+        <option value="LOW">Low of the zone (0%)</option>
+        <option value="25">25%</option>
+        <option value="CE">C.E. (50%)</option>
+        <option value="75">75%</option>
+        <option value="HIGH">High of the zone (100%)</option>
+        <option value="WICK">Wick through — beyond the zone</option>
+        <option value="NOZONE">No zone</option>
+      </select></div>
+      <div><label class="lbl" for="t-addpa">IF THIS IS AN ADD — WHERE, VS THE PA LEVEL</label><select class="sel" id="t-addpa">
+        <option value="">not an add / not set</option>
+        <option value="AT">At the PA level</option>
+        <option value="BEFORE">Before the level (anticipated)</option>
+        <option value="AFTER">After the level broke / reclaimed</option>
+        <option value="NOLEVEL">No level — added on price movement</option>
+      </select><div class="tickecho" id="t-addinfo">&nbsp;</div></div>
       <div><label class="lbl" for="t-mgmt">MANAGEMENT</label><select class="sel" id="t-mgmt">
         <option value="">not set</option>
         <option value="SCALP">SCALP — took it quickly, all out</option>
@@ -646,6 +666,8 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">STATE TEST — WITH vs AGAINST STATE, BY MANAGEMENT (positions)</div><div id="bd-sttest"></div></div>
     <div class="bd"><div class="bd-t">STATE TEST — BY CARD AT THE LOCK (positions)</div><div id="bd-stcard"></div></div>
     <div class="bd"><div class="bd-t">STATE TEST — WHICH SETUP WORKS IN WHICH ENVIRONMENT (positions)</div><div id="bd-stsetup"></div></div>
+    <div class="bd"><div class="bd-t">ENTRY POINT IN THE ZONE — FIRST ENTRIES vs ADDS (parcels)</div><div id="bd-zpt"></div></div>
+    <div class="bd"><div class="bd-t">SCALING IN — EVERY ADD, BY WHERE IT WENT IN AND WHETHER THE TRADE WAS WORKING</div><div id="bd-adds"></div></div>
     <div class="bd"><div class="bd-t">PASSED SETUPS — SHARE THAT WOULD HAVE WORKED, BY REASON</div><div id="bd-pass"></div></div>
     <div class="bd"><div class="bd-t">TAKEN vs PASSED AT THE SAME PANEL P SCORE</div><div id="bd-tvp"></div></div>
     <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
@@ -1211,6 +1233,28 @@ function stateSide(d){ return d&&d.panelF==='CONTRACTING'?'SHORT':(d&&d.panelF==
 function vsStateOf(t,d){ const s=stateSide(d); return !s?'':(t.dir===s?'WITH':'AGAINST'); }
 function isStTest(t,d){ return t.stTest===true || (t.stTest!==false && !!(d&&d.stTestDay)); }
 const PLAN_MAX=2;
+/* [v5.4.4] SCALING IN. Marc, 29 Oct: next week's data is how he scales into trades
+   at price action. An ADD is any entry on the same account and side while an earlier
+   entry on that account and side is still open. Measured from the fills: which add
+   it is, and where the FIRST open entry stood at that moment, in points (+ = the
+   position was already working, − = adding against it). Seconds are used when the
+   import carries them, so two orders a few seconds apart order correctly. */
+function addInfo(t,d){
+  const A=acctIdOf(t,d), tin=(t.sec!=null?t.sec/60:t.mins);
+  const open=(d.trades||[]).filter(x=>{
+    if(x===t||sameGrp(x,t)||acctIdOf(x,d)!==A||x.dir!==t.dir||(x.ins||'MNQ')!==(t.ins||'MNQ')) return false;
+    const xin=(x.sec!=null?x.sec/60:x.mins), xout=(x.outSec!=null?x.outSec/60:(x.outMins!=null?x.outMins:x.mins));
+    return xin<tin && xout>tin;
+  });
+  if(!open.length) return null;
+  const firstIn=Math.min.apply(null,open.map(x=>(x.sec!=null?x.sec/60:x.mins)));
+  const first=open.find(x=>(x.sec!=null?x.sec/60:x.mins)===firstIn);
+  const gkeys=new Set(open.map(x=>x.grp||('#'+x.mins+'|'+x.inPx)));
+  const pts=(+t.inPx>0&&+first.inPx>0)?(t.dir==='LONG'?(+t.inPx-+first.inPx):(+first.inPx-+t.inPx)):null;
+  /* pts here is the FIRST entry's open P&L at the add: price moved from first.inPx to
+     t.inPx. For a long, adding higher = first entry in profit. */
+  return {n:gkeys.size, firstPts:pts};
+}
 function pfLabel(d){
   const bits=[d.panelF||'not set'];
   if(d.phaseF) bits.push(d.phaseF);
@@ -2201,6 +2245,7 @@ function recompute(d){
     t.window=a.window; t.flags=a.flags; t.streakBefore=a.streakBefore;
     t.cap=a.cap; t.ceil=a.ceil; t.openBefore=ob;
     t.vsState=vsStateOf(t,d); t.isTest=isStTest(t,d);
+    { const ai=addInfo(t,d); t.isAdd=!!ai; t.addN=ai?ai.n:0; t.addFirstPts=(ai&&ai.firstPts!=null)?Math.round(ai.firstPts*4)/4:null; }
     t.risk=a.risk; t.riskPct=a.riskPct; t.hold=a.hold;
     t.pts=a.pts; t.rMult=a.rMult; t.maeR=a.maeR; t.headroom=a.headroom; t.capture=a.capture;
     out.push(t);
@@ -2572,11 +2617,11 @@ function shiftDay(n){ const d=new Date(VIEW+'T12:00:00'); d.setDate(d.getDate()+
    NOT on instrument, direction, Panel P score, F2, location or result: the
    violation engine reads those exact values, and a typed one would silently
    switch its rules off. */
-const CUSTOM_SELECTS={'t-rng':'the range you measured location in','t-setup':'the setup','t-trig':'the trigger','t-exit':'the exit type',
+const CUSTOM_SELECTS={'t-zpt':'where in the zone the fill was','t-addpa':'where the add went in vs the PA level','t-rng':'the range you measured location in','t-setup':'the setup','t-trig':'the trigger','t-exit':'the exit type',
   't-tact':'what you did with the target','t-mgmt':'how you managed it','x-why':'why you did not take it',
   'dd-fix':'the one thing to fix'};
 function customDataValues(id){
-  const v=[], k={'t-rng':'rng','t-setup':'setup','t-trig':'trig','t-exit':'exit','t-tact':'tact','t-mgmt':'mgmt'}[id];
+  const v=[], k={'t-zpt':'zpt','t-addpa':'addPa','t-rng':'rng','t-setup':'setup','t-trig':'trig','t-exit':'exit','t-tact':'tact','t-mgmt':'mgmt'}[id];
   Object.keys(DB.days||{}).forEach(dk=>{ const d=DB.days[dk];
     if(k) (d.trades||[]).forEach(t=>{ if(t[k]) v.push(t[k]); });
     if(id==='x-why') (d.passes||[]).forEach(p=>{ if(p.why) v.push(p.why); });
@@ -2783,6 +2828,9 @@ function render(){
       +(x.isTest?'<b style="color:var(--acc)">STATE TEST</b> · ':'')
       +(x.vsState?(x.vsState==='WITH'?'with STATE · ':'<b style="color:var(--y1)">AGAINST STATE</b> · '):'')
       +(x.mgmt?x.mgmt+' · ':'')
+      +(x.zpt?'zone '+({LOW:'low',25:'25%',CE:'C.E.',75:'75%',HIGH:'high',WICK:'wick through',NOZONE:'none'}[x.zpt]||x.zpt)+' · ':'')
+      +(x.isAdd?'<b style="color:'+(x.addFirstPts!=null&&x.addFirstPts<0?'var(--r1)':'var(--acc)')+'">ADD #'+x.addN
+        +(x.addFirstPts!=null?' (first '+(x.addFirstPts>0?'+':'')+x.addFirstPts+'pt)':'')+'</b>'+(x.addPa?' '+x.addPa:'')+' · ':'')
       +(x.setup?x.setup:'no setup')+(x.loc?' · '+x.loc:'')+' · '+x.ins+' · '+x.window
       +(x.risk?' · risk '+money(x.risk)+' ('+Math.round(x.riskPct)+'%)':'')
       +(x.rMult!=null?' · '+(x.rMult>=0?'+':'')+x.rMult.toFixed(2)+'R':'')
@@ -3295,6 +3343,30 @@ function renderStats(){
       'Cards 07/08 (CONTRACTING/BEAR) carried the backtest; Card 06 is excluded from the test. One falling market so far — watch for the first rising one.');
   }
 
+  { const g={}, L={LOW:'low (0%)',25:'25%',CE:'C.E. (50%)',75:'75%',HIGH:'high (100%)',WICK:'wick through',NOZONE:'no zone'};
+    T.forEach(t=>{ if(!t.zpt) return;
+      const k=(L[t.zpt]||t.zpt)+' · '+t.dir+' · '+(t.isAdd?'add':'first entry');
+      const x=g[k]||(g[k]={n:0,w:0,net:0}); x.n++; if(netOf(t)>0)x.w++; x.net+=netOf(t); });
+    bdStat('bd-zpt',Object.keys(g).sort((a,b)=>g[b].n-g[a].n).map(k=>{const x=g[k],wr=Math.round(x.w/x.n*100);
+      return {label:k,bar:wr,cls:x.n<10?'':(x.net>0?'hi':'lo'),value:x.n+' · '+wr+'% · '+money(x.net)};}),
+      'Low = 0%, high = 100% of the zone the fill came from, for longs and shorts alike. A long at the C.E. of a BISI and a short at the C.E. of a SIBI both read C.E. Under 10 in a row is not a finding.');
+  }
+  /* ── [v5.4.4] SCALING IN ──────────────────────────────────────────────
+     One row per add (a parcel opened while the same side was already open on
+     that account), split by whether the first entry was in profit or loss at
+     the add, and by where the add sat against the PA level. Net is the add's own
+     parcel, so the question answered is: did THIS add earn its place. */
+  { const g={};
+    T.forEach(t=>{ if(!t.isAdd) return;
+      const st=t.addFirstPts==null?'first entry unknown':(t.addFirstPts>0?'trade working (+)':(t.addFirstPts<0?'trade against you (−)':'at first entry'));
+      const pa={AT:'at PA level',BEFORE:'before level',AFTER:'after level broke',NOLEVEL:'no level'}[t.addPa]||(t.addPa||'PA not set');
+      const k=st+' · '+pa; const x=g[k]||(g[k]={n:0,w:0,net:0,ctr:0});
+      x.n++; x.ctr+=(+t.qty||0); if(netOf(t)>0)x.w++; x.net+=netOf(t); });
+    const rows=Object.keys(g).sort((a,b)=>g[b].n-g[a].n).map(k=>{const x=g[k],wr=Math.round(x.w/x.n*100);
+      return {label:k,bar:wr,cls:x.n<10?'':(x.net>0?'hi':'lo'),value:x.n+' adds · '+x.ctr+' ctr · '+wr+'% · '+money(x.net)};});
+    bdStat('bd-adds',rows,'An add = an entry while the same side was already open on that account. "Trade working" = the first entry was in profit at the moment of the add. Set WHERE VS THE PA LEVEL on each add — the import cannot see it.');
+  }
+
   /* ── PASSED SETUPS ─────────────────────────────────────────────────────
      The half of the distribution a normal journal discards. Grouped by the
      reason, so a rule that keeps blocking winners and a rule that keeps
@@ -3708,6 +3780,9 @@ function editTrade(i){
   document.getElementById('t-exit').value=t.exit||'';
   document.getElementById('t-mgmt').value=t.mgmt||'';
   document.getElementById('t-rng').value=t.rng||'';
+  document.getElementById('t-addpa').value=t.addPa||'';
+  document.getElementById('t-zpt').value=t.zpt||'';
+  document.getElementById('t-addinfo').textContent=t.isAdd?('ADD #'+t.addN+(t.addFirstPts!=null?' · first entry '+(t.addFirstPts>0?'+':'')+t.addFirstPts+' pts at this add':'')):'\u00a0';
   document.getElementById('t-sttest').checked=isStTest(t,d);
   document.getElementById('t-note').value=t.note||'';
   document.getElementById('t-mae').value=(+t.mae||'')||'';
@@ -3762,6 +3837,8 @@ function addTrade(override){
     exit:document.getElementById('t-exit').value,
     mgmt:document.getElementById('t-mgmt').value,
     rng:document.getElementById('t-rng').value,
+    addPa:document.getElementById('t-addpa').value,
+    zpt:document.getElementById('t-zpt').value,
     /* Stored explicitly only when it differs from the day: the day toggle stays
        the single switch for an ordinary test day. */
     stTest:(document.getElementById('t-sttest').checked===!!d.stTestDay)?undefined:document.getElementById('t-sttest').checked,
@@ -3794,6 +3871,7 @@ function addTrade(override){
   document.getElementById('t-tp').value=''; document.getElementById('t-tact').value='';
   document.getElementById('t-grp').value='';
   document.getElementById('t-mgmt').value='';
+  document.getElementById('t-addpa').value=''; document.getElementById('t-zpt').value=''; document.getElementById('t-addinfo').textContent='\u00a0';
   document.getElementById('t-sttest').checked=!!d.stTestDay;
   /* RANGE USED is a habit, not a per-trade choice — leave it set for the next trade. */
   save();
@@ -3866,7 +3944,8 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   'score_ceiling','ceiling_min','ceiling_margin',
   'price_lie_fired_at','price_lie_cleared_at','price_lie_fires',
   /* [v5.4.3] Appended, never inserted. */
-  'state_test','vs_state','management','location_range']);
+  'state_test','vs_state','management','location_range',
+  /* [v5.4.4] */ 'is_add','add_number','first_entry_pts_at_add','add_vs_pa','zone_point']);
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* [v5.4.0] The six DAY columns that follow the metric columns. Same contract as
@@ -3908,7 +3987,8 @@ function buildRows(wide){
            not violate", and the denominator counts parcels where contracts > 0. */
         .concat(['','','','',''])
         .concat(dayCols(d))
-        .concat([(d.stTestDay?'DAY':''),'','',''])):base);
+        .concat([(d.stTestDay?'DAY':''),'','',''])
+        .concat(['','','','',''])):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -3947,7 +4027,8 @@ function buildRows(wide){
                  m3NoTrigger(d,t)?1:0,
                  mBelowCardMin(d,t)?1:0])
         .concat(dayCols(d))
-        .concat([(isStTest(t,d)?'YES':''),vsStateOf(t,d),(t.mgmt||''),(t.rng||'')])):base);
+        .concat([(isStTest(t,d)?'YES':''),vsStateOf(t,d),(t.mgmt||''),(t.rng||'')])
+        .concat([(t.isAdd?'YES':''),(t.isAdd?t.addN:''),(t.addFirstPts!=null?t.addFirstPts:''),(t.addPa||''),(t.zpt||'')])):base);
     });
   });
   return out;
