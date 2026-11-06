@@ -1,9 +1,20 @@
 <!DOCTYPE html>
+<!-- EDGEIQ Journal v5.4.6 — 6 Nov 2026
+     1. WHAT I SAW: six dropdowns per trade (pattern, leader/whales, Panel R flow,
+        MNQ vs MES, context, what argued against). Every one takes OTHER — type it.
+        Shown on the trade row; two new breakdown panels; export appends
+        saw_pattern … saw_against, saw_count, tbr_5m (YES when the 5m three-bar
+        reversal was the pattern or the trigger). Recorded, never scored.
+     2. Trigger list gains 5m / 1m three-bar reversal.
+     3. DEAD ZONE is no longer a tag or a pre-trade block; the window is still data.
+        Past days re-tag on recompute, so totals for Dead Zone days fall.
+     4. Language: "violation" is now "tag" everywhere it is shown. CSV keys
+        violation_count / violations are unchanged so old exports still line up. -->
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.4</title>
+<title>EDGEIQ — Journal v5.4.6</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -170,7 +181,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.4.4</div>
+    <div class="chip" title="build version">v5.4.6</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -201,7 +212,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="rail" id="r-streak"><div class="rail-l">LOSS STREAK</div><div class="rail-v" id="v-streak">0</div><div class="tickecho" id="v-streak-sub"></div></div>
     <div class="rail" id="r-peak"><div class="rail-l">PEAK POSITION</div><div class="rail-v" id="v-peak">0</div></div>
     <div class="rail" id="r-orisk"><div class="rail-l">PEAK OPEN RISK</div><div class="rail-v" id="v-orisk">$0</div><div class="tickecho" id="v-orisk-sub"></div></div>
-    <div class="rail" id="r-viol"><div class="rail-l">VIOLATIONS</div><div class="rail-v" id="v-viol">0</div></div>
+    <div class="rail" id="r-viol"><div class="rail-l">TAGS</div><div class="rail-v" id="v-viol">0</div></div>
   </div>
 
   <div class="card">
@@ -288,6 +299,35 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       <div><label class="lbl" for="f-plfires">TIMES IT FIRED</label>
         <input class="inp" id="f-plfires" type="number" min="0" step="1" placeholder="0"/></div>
     </div>
+
+    <!-- [v5.4.5] SHAKEOUT ALERT. Marc, 3 Nov 10:42: "we track price lie but we don't
+         track shake out alert... seeing that gave me more confidence to take the
+         longs I took today." Same clock shape as PRICE LIE, because it is the same
+         kind of live, flickering Panel F print — but it is NOT a veto and NOT a
+         permission. It changes no ceiling, no size and no flag. It is recorded so
+         the breakdown can answer one question: do trades taken while it is live
+         do better than the same side without it? -->
+    <div class="grid g3" style="margin-bottom:4px">
+      <div><label class="lbl" for="f-sofired">SHAKEOUT ALERT — FIRST FIRED</label>
+        <input class="inp" id="f-sofired" type="time" step="60"/></div>
+      <div><label class="lbl" for="f-socleared">LAST CLEARED</label>
+        <input class="inp" id="f-socleared" type="time" step="60"/></div>
+      <div><label class="lbl" for="f-sofires">TIMES IT FIRED</label>
+        <input class="inp" id="f-sofires" type="number" min="0" step="1" placeholder="0"/></div>
+    </div>
+    <div class="grid g2" style="margin-bottom:9px">
+      <div><label class="lbl" for="f-sosrc">WHERE IT PRINTED</label><select class="sel" id="f-sosrc">
+        <option value="">not recorded</option>
+        <option value="F">Panel F — ★ HIDDEN STRENGTH: SHAKEOUT ALERT</option>
+        <option value="F2">Panel F2 — ★ INTRADAY SHAKEOUT only</option>
+        <option value="BOTH">Both</option>
+      </select></div>
+      <div><label class="lbl" for="f-soside">ALERT SIDE</label><select class="sel" id="f-soside">
+        <option value="LONG">LONG — hidden strength (shakeout of longs)</option>
+        <option value="SHORT">SHORT — hidden weakness (shakeout of shorts)</option>
+      </select></div>
+    </div>
+    <div class="help" style="margin:-4px 0 9px">Shakeout alert is recorded, never enforced — no veto, no size, no flag. Leave LAST CLEARED blank if it was still printing when you stopped trading. Blank FIRST FIRED = not seen today.</div>
 
     <label class="lbl">EMOTIONAL STATE — answer before the first trade</label>
     <div class="tg" id="e0" onclick="tog(0)"><div class="box"></div><span>I slept enough and I am not rushing.</span></div>
@@ -379,12 +419,26 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
           <option>Resting limit at the level</option>
           <option>CE / 50% tap fill</option>
           <option>Break of a micro structure high/low</option>
+          <option>5m three-bar reversal</option>
+          <option>1m three-bar reversal</option>
           <option value="CHASED">Market order — chased it</option>
           <option value="NOTRIG">Market order — anticipated, no trigger</option>
         </select>
       </div>
     </div>
 
+
+    <!-- [v5.4.6] WHAT I SAW — the chart in words. Recorded, never scored: none of
+         these fields feeds the tag engine, the ceiling or the three metrics. -->
+    <label class="lbl" style="display:block;margin:4px 0 6px;color:var(--acc)">WHAT I SAW — PICK EVERY ONE THAT WAS PART OF THE REASON · OTHER = TYPE YOUR OWN</label>
+    <div class="grid g3" style="margin-bottom:7px">
+      <div><label class="lbl" for="t-saw-pat">PATTERN</label><select class="sel" id="t-saw-pat"><option value="">—</option><option>5m three-bar reversal</option><option>1m three-bar reversal</option><option>Rejection candle at level</option><option>Sweep &amp; reclaim</option><option>Displacement through level</option><option>FVG / OB retest</option><option>Double top / bottom</option></select></div>
+      <div><label class="lbl" for="t-saw-lead">LEADER / WHALES</label><select class="sel" id="t-saw-lead"><option value="">—</option><option>Leader rejected at EMAs / VWAP</option><option>Leader reclaimed EMAs / VWAP</option><option>Leader lost its open — turned first</option><option>Leader at new low / high of day</option><option>Leader 3-bar reversal</option><option>Whales flipped my way</option><option>Whales mixed</option></select></div>
+      <div><label class="lbl" for="t-saw-flow">FLOW — PANEL R</label><select class="sel" id="t-saw-flow"><option value="">—</option><option>VOLD flat / fading against the move</option><option>VOLD building my way</option><option>Risk spread turning my way</option><option>EDGE with me (3+)</option><option>EDGE maxed but fading</option><option>$TICK extreme against the move</option><option>Buying / selling pressure picking up</option></select></div>
+      <div><label class="lbl" for="t-saw-mkt">MARKET — MNQ vs MES</label><select class="sel" id="t-saw-mkt"><option value="">—</option><option>MES struggling to break out</option><option>MES not confirming the move</option><option>MES confirming</option><option>MNQ leading MES</option><option>MNQ lagging MES</option><option>Macro (DXY / yields) with me</option></select></div>
+      <div><label class="lbl" for="t-saw-ctx">CONTEXT</label><select class="sel" id="t-saw-ctx"><option value="">—</option><option>Higher timeframe (D/W) with me</option><option>Retest of yesterday's breakdown level</option><option>Card allows my side</option><option>Phase / momentum with me</option><option>STATE with me</option><option>Last night's side with me</option><option>Shakeout alert live</option><option>Testing against the card</option></select></div>
+      <div><label class="lbl" for="t-saw-vs">WHAT ARGUED AGAINST IT</label><select class="sel" id="t-saw-vs"><option value="">—</option><option>Nothing I saw</option><option>Opposing 3-bar reversal</option><option>Opposing pattern in the wrong location</option><option>Panel R flow against me</option><option>Leader moving against me</option><option>MES confirming against me</option><option>Card / phase against me</option><option>Inside a key level / unclear location</option></select></div>
+    </div>
     <div class="grid g4" style="margin-bottom:7px">
       <div><label class="lbl" for="t-stop">STOP DISTANCE (PTS)</label><input class="inp req" id="t-stop" type="number" step="0.25" placeholder="12.5"/><div class="tickecho" id="t-stop-tk">&nbsp;</div><label class="nostop"><input type="checkbox" id="t-nostop"/> no stop was in the market</label></div>
       <div><label class="lbl" for="t-res">RESULT</label><select class="sel" id="t-res"><option>WIN</option><option>LOSS</option><option>BREAKEVEN</option></select></div>
@@ -467,7 +521,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     </div>
 
     <button class="btn" id="logbtn" onclick="addTrade(false)">LOG TRADE</button>
-    <button class="btn dgr tiny" id="ovrbtn" style="margin-top:6px;display:none" onclick="addTrade(true)">I TOOK IT ANYWAY — RECORD AS A VIOLATION</button>
+    <button class="btn dgr tiny" id="ovrbtn" style="margin-top:6px;display:none" onclick="addTrade(true)">I TOOK IT ANYWAY — LOG IT WITH ITS TAGS</button>
     <button class="btn sec tiny" id="cxlbtn" style="margin-top:6px;display:none" onclick="cancelEdit()">CANCEL EDIT</button>
   </div>
 
@@ -545,17 +599,17 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <label class="nostop" style="margin-bottom:7px"><input type="checkbox" id="dd-excl"/> EXCLUDE this day from expectancy, streak history and the breakdowns — for a session that was not the system</label>
     <div class="grid g2" style="margin-bottom:7px">
       <div>
-        <label class="lbl" for="dd-grade">PROCESS GRADE — rules followed, not money made</label>
+        <label class="lbl" for="dd-grade">PROCESS GRADE — how closely the plan was followed (information, not a score on you)</label>
         <select class="sel" id="dd-grade">
           <option value="">not set</option>
-          <option value="A">A — every rule held</option>
-          <option value="B">B — minor drift, no hard violations</option>
-          <option value="C">C — one hard violation</option>
-          <option value="D">D — multiple violations or size escalation</option>
+          <option value="A">A — followed the plan throughout</option>
+          <option value="B">B — small drift, no hard tags</option>
+          <option value="C">C — one hard tag</option>
+          <option value="D">D — several hard tags or size escalation</option>
         </select>
       </div>
       <div>
-        <label class="lbl" for="dd-fix">THE ONE THING TO FIX TOMORROW</label>
+        <label class="lbl" for="dd-fix">ONE THING TO TEST OR ADJUST TOMORROW</label>
         <select class="sel" id="dd-fix">
           <option value="">not set</option>
           <optgroup label="SIZE / RISK">
@@ -639,7 +693,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="rail"><div class="rail-l">TOTAL TRADES</div><div class="rail-v" id="s-trades">0</div></div>
     <div class="rail" id="s-net-r"><div class="rail-l">CUMULATIVE NET</div><div class="rail-v" id="s-net">$0</div></div>
     <div class="rail" id="s-peak-r"><div class="rail-l">PEAK CONCURRENT</div><div class="rail-v" id="s-peak">0</div><div class="tickecho" id="s-peak-sub"></div></div>
-    <div class="rail" id="s-viol-r"><div class="rail-l">TOTAL VIOLATIONS</div><div class="rail-v" id="s-viol">0</div></div>
+    <div class="rail" id="s-viol-r"><div class="rail-l">TOTAL TAGS</div><div class="rail-v" id="s-viol">0</div></div>
     <div class="rail" id="s-mls-r"><div class="rail-l">LONGEST LOSS RUN</div><div class="rail-v" id="s-mls">0</div><div class="tickecho" id="s-mls-sub"></div></div>
   </div>
   <div class="card">
@@ -668,12 +722,15 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">STATE TEST — WHICH SETUP WORKS IN WHICH ENVIRONMENT (positions)</div><div id="bd-stsetup"></div></div>
     <div class="bd"><div class="bd-t">ENTRY POINT IN THE ZONE — FIRST ENTRIES vs ADDS (parcels)</div><div id="bd-zpt"></div></div>
     <div class="bd"><div class="bd-t">SCALING IN — EVERY ADD, BY WHERE IT WENT IN AND WHETHER THE TRADE WAS WORKING</div><div id="bd-adds"></div></div>
+    <div class="bd"><div class="bd-t">SHAKEOUT ALERT — LIVE AT ENTRY vs NOT, BY DIRECTION (parcels)</div><div id="bd-shake"></div></div>
+    <div class="bd"><div class="bd-t">WHAT I SAW → RESULT (parcels)</div><div id="bd-saw"></div></div>
+    <div class="bd"><div class="bd-t">HOW MANY THINGS LINED UP → RESULT (parcels)</div><div id="bd-sawn"></div></div>
     <div class="bd"><div class="bd-t">PASSED SETUPS — SHARE THAT WOULD HAVE WORKED, BY REASON</div><div id="bd-pass"></div></div>
     <div class="bd"><div class="bd-t">TAKEN vs PASSED AT THE SAME PANEL P SCORE</div><div id="bd-tvp"></div></div>
-    <div class="bd"><div class="bd-t">VIOLATIONS BY TYPE</div><div id="bd-viol"></div></div>
-    <div class="bd"><div class="bd-t">BY ACCOUNT — DOES DISCIPLINE TRAVEL?</div><div id="bd-acct"></div></div>
-    <div class="bd"><div class="bd-t">BY FIRM — IS IT THE RULES OR IS IT YOU?</div><div id="bd-firm"></div></div>
-    <div class="bd"><div class="bd-t">THE FIX THAT KEEPS COMING BACK</div><div id="bd-fix"></div></div>
+    <div class="bd"><div class="bd-t">TAGS BY TYPE — WHAT EACH ONE TAUGHT</div><div id="bd-viol"></div></div>
+    <div class="bd"><div class="bd-t">BY ACCOUNT — DOES THE PLAN TRAVEL?</div><div id="bd-acct"></div></div>
+    <div class="bd"><div class="bd-t">BY FIRM — WHICH RULE SET FITS?</div><div id="bd-firm"></div></div>
+    <div class="bd"><div class="bd-t">THE ADJUSTMENT THAT KEEPS COMING BACK</div><div id="bd-fix"></div></div>
     <div class="bd"><div class="bd-t">PROCESS GRADE vs MONEY</div><div id="bd-grade"></div></div>
     <div class="help">Any row with fewer than 20 trades is noise, not a finding. It is shown so you can see the sample filling, not so you can act on it. THE FIX THAT KEEPS COMING BACK counts days, not trades — three of the same fix inside thirty days is the pattern, not a bad day.</div>
   </div>
@@ -706,7 +763,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     </table>
     <table class="ladder" style="margin-top:10px">
       <tr><th>THEN THESE CUT IT FURTHER</th><th>EFFECT</th></tr>
-      <tr><td>Any <b>hard</b> violation already logged today</td><td>ceiling drops to 1 for the rest of the day</td></tr>
+      <tr><td>Any <b>hard</b> tag already logged today</td><td>ceiling drops to 1 for the rest of the day</td></tr>
       <tr><td>1 loss in a row</td><td>half</td></tr>
       <tr><td>2 losses in a row</td><td>1 contract</td></tr>
       <tr><td>3 losses in a row</td><td>0 — 20-min lockout, then 6/6 only</td></tr>
@@ -714,7 +771,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       <tr><td>Position already open</td><td>pyramid — flagged, counts against the ceiling</td></tr>
       <tr><td>CONTRACTING day</td><td>stop capped at 100 ticks (25 pts)</td></tr>
     </table>
-    <div class="help">A blank field — no setup, no F2, no exit type — is a <b>soft</b> flag. It shows on the trade and it is counted, but it does not ratchet the day. Only a broken rule does that.</div>
+    <div class="help">A blank field — no setup, no F2, no exit type — is a <b>soft</b> flag. It shows on the trade and it is counted, but it does not ratchet the day. Only a hard tag does that.</div>
   </div>
 
   <div class="card">
@@ -1226,6 +1283,21 @@ function priceLieAt(d,mins){
   if(c!=null&&mins>=c) return false;
   return true;
 }
+/* [v5.4.5] SHAKEOUT ALERT AT A MOMENT. 'YES' while it was printing, 'NO' outside
+   that window on a day it was recorded, '' on a day with no clock — an unrecorded
+   alert is unknown, not absent. Same window rule as priceLieAt: fired <= t < cleared. */
+function shakeoutAt(d,mins){
+  const f=hhmmToMins(d&&d.soFired); if(f==null) return '';
+  if(mins==null) return 'YES';
+  const c=hhmmToMins(d.soCleared);
+  if(mins<f) return 'NO';
+  if(c!=null&&mins>=c) return 'NO';
+  return 'YES';
+}
+function vsShakeoutOf(t,d){
+  if(shakeoutAt(d,t.mins)!=='YES') return '';
+  return t.dir===((d&&d.soSide)||'LONG')?'WITH':'AGAINST';
+}
 /* [v5.4.3] STATE TEST helpers. STATE's side: CONTRACTING → SHORT, EXPANDING →
    LONG, STALLED → none. A test trade is any trade on a STATE TEST day unless it
    was unticked on the trade, or any trade ticked on its own. */
@@ -1307,7 +1379,7 @@ function paintCard(d){
     ' · size '+(c.size==='full'?'full ladder':'base only, no scaling')+
     ' · <span style="opacity:.8">'+d.panelF+' / '+d.phaseF+' / '+d.momF+'</span>';
 }
-function blankDay(d){return {date:d,panelF:'',phaseF:'',momF:'',priceLie:false,ceilScore:'',ceilMin:'',plFired:'',plCleared:'',plFires:'',stTestDay:false,vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
+function blankDay(d){return {date:d,panelF:'',phaseF:'',momF:'',priceLie:false,ceilScore:'',ceilMin:'',plFired:'',plCleared:'',plFires:'',soFired:'',soCleared:'',soFires:'',soSrc:'',soSide:'LONG',stTestDay:false,vix:'',acct:lastAccount(),excl:false,esg:[false,false,false],grade:'',fix:'',note:'',trades:[],passes:[],closed:false,done:false};}
 function day(){ if(!DB.days[VIEW]) DB.days[VIEW]=blankDay(VIEW); return DB.days[VIEW]; }
 
 /* ---------- ET TIME ---------- */
@@ -1470,7 +1542,7 @@ function ratchetedCeiling(d,prior,A,mins){
    the binding input turns a stuck number into an instruction. */
 function ceilingReason(d,prior,A){
   A=A||CFG;
-  if(prior&&prior.some(p=>hardCount(p)>0)) return 'ratcheted to base by an earlier hard violation — it cannot be raised again today';
+  if(prior&&prior.some(p=>hardCount(p)>0)) return 'ratcheted to base by an earlier hard tag — it cannot be raised again today';
   if(isPriceLie(d)) return 'PRICE LIE is a hard veto — no size is permitted at all';
   if(!d.panelF)              return 'Panel F STATE is not set — until it is, the ceiling stays at base';
   if(A.RISK_MODE&&!isLegacyDay(d)&&pfComplete(d)){
@@ -1739,7 +1811,8 @@ function analyze(t,prior,d,openBefore){
 
   if(firstP){
   // ── WINDOW
-  if(w.n==='DEAD ZONE') f.push('DEAD ZONE');
+  /* [v5.4.6] DEAD ZONE is no longer a tag — removed by Marc 6 Nov for live and
+     paper alike. The window is still recorded on every trade as data. */
   if(t.mins<585) f.push(t.mins<570?'PRE-OPEN':'OPENING RANGE');
   if(t.mins>=960) f.push('AFTER HOURS');
 
@@ -2462,7 +2535,7 @@ function preflight(){
   const rc=riskCapFor(stopPts,document.getElementById('t-ins').value,A);
 
   if(!live){
-    el.innerHTML='<div class="pf warn">Editing '+VIEW+' — a past day. Live vetoes are off; violations are still scored on save.</div>';
+    el.innerHTML='<div class="pf warn">Editing '+VIEW+' — a past day. Live vetoes are off; tags are still recorded on save.</div>';
     sb.innerHTML='<div class="sizebar"><span>CEILING</span><b>'+ceil+'</b><span class="why">back-logging — size is still checked against the ladder</span></div>';
     HARD_VETO=false; paintButtons(); return;
   }
@@ -2484,10 +2557,11 @@ function preflight(){
   } else {
     const cd=cardFor(d);
     if(isVeto(cd)) v.push('CARD '+cd.card+' — '+cd.side+(cd.why?': '+cd.why:'')+'. This is the card the three Panel F readings select; it does not move with the score');
-    if(isWatchState(cd)&&!A.RISK_MODE) v.push('CARD '+cd.card+' — '+cd.side+', but at 50% size, which is zero contracts at your 1-contract base. The setup is real and you cannot take it');
+    if(isWatchState(cd)&&!A.RISK_MODE) v.push('CARD '+cd.card+' — '+cd.side+', but at 50% size, which is zero contracts at your 1-contract base. The setup is real — at this size it cannot be sized in');
     if(isWatchState(cd)&&A.RISK_MODE) wn.push('CARD '+cd.card+' — '+cd.side+' at HALF RISK on '+A.LABEL+' · min '+cd.min+'/6 · depth '+cd.depth+' · '+cd.tgt);
   }
-  if(!w.ok) v.push(w.n+' — no entries in this window');
+  if(!w.ok&&w.n!=='DEAD ZONE') v.push(w.n+' — no entries in this window');
+  if(w.n==='DEAD ZONE') wn.push('DEAD ZONE — recorded as data, not a block. Note what you see.');
   const lk=lockState();
   if(lk&&lk.active){
     const m=Math.floor(lk.secs/60), ss=lk.secs%60;
@@ -2522,7 +2596,7 @@ function preflight(){
   }
   if(esg<2) wn.push('Emotional state '+esg+'/3 — restricted: 6/6 and 1 contract only');
   if(d.panelF==='CONTRACTING') wn.push('Contracting — 5/6 minimum, stop capped at '+A.STOP_CAP_TICKS+' ticks');
-  if(ratcheted) wn.push('A violation is already logged today — ceiling has ratcheted down to '+A.BASE_CONTRACTS);
+  if(ratcheted) wn.push('A hard tag is already logged today — ceiling has ratcheted down to '+A.BASE_CONTRACTS);
   if(streak===2) wn.push('Two losses in a row — next entry is 1 contract, and a third triggers the lockout');
   /* The aggregate. Three accounts each inside their own 10% is still 30% of a
      day gone, and no single account's screen will ever say so. */
@@ -2552,7 +2626,7 @@ function preflight(){
   }else
   why.push(rc===null?'no stop set — risk cap not applied'
                     :('stop '+stopPts+'pt affords '+rc+' at $'+budgetOf(A).toFixed(0)+' budget'));
-  if(ratcheted) why.push('ratcheted — hard violation logged');
+  if(ratcheted) why.push('ratcheted — hard tag logged');
   if(streak) why.push(streak+' loss'+(streak>1?'es':'')+' in a row');
   sb.innerHTML='<div class="sizebar'+(cap===0?' blocked':'')+'"><span>MAX CONTRACTS RIGHT NOW</span><b>'+cap+'</b>'
     +'<span class="why">'+why.join(' · ')+'</span></div>';
@@ -2619,9 +2693,10 @@ function shiftDay(n){ const d=new Date(VIEW+'T12:00:00'); d.setDate(d.getDate()+
    switch its rules off. */
 const CUSTOM_SELECTS={'t-zpt':'where in the zone the fill was','t-addpa':'where the add went in vs the PA level','t-rng':'the range you measured location in','t-setup':'the setup','t-trig':'the trigger','t-exit':'the exit type',
   't-tact':'what you did with the target','t-mgmt':'how you managed it','x-why':'why you did not take it',
-  'dd-fix':'the one thing to fix'};
+  'dd-fix':'the one thing to test or adjust',
+  /* [v5.4.6] */ 't-saw-pat':'the pattern you saw','t-saw-lead':'what the leader / whales did','t-saw-flow':'what Panel R flow showed','t-saw-mkt':'what MES / the market did','t-saw-ctx':'the context','t-saw-vs':'what argued against it'};
 function customDataValues(id){
-  const v=[], k={'t-zpt':'zpt','t-addpa':'addPa','t-rng':'rng','t-setup':'setup','t-trig':'trig','t-exit':'exit','t-tact':'tact','t-mgmt':'mgmt'}[id];
+  const v=[], k={'t-zpt':'zpt','t-addpa':'addPa','t-rng':'rng','t-setup':'setup','t-trig':'trig','t-exit':'exit','t-tact':'tact','t-mgmt':'mgmt','t-saw-pat':'sawPat','t-saw-lead':'sawLead','t-saw-flow':'sawFlow','t-saw-mkt':'sawMkt','t-saw-ctx':'sawCtx','t-saw-vs':'sawVs'}[id];
   Object.keys(DB.days||{}).forEach(dk=>{ const d=DB.days[dk];
     if(k) (d.trades||[]).forEach(t=>{ if(t[k]) v.push(t[k]); });
     if(id==='x-why') (d.passes||[]).forEach(p=>{ if(p.why) v.push(p.why); });
@@ -2664,7 +2739,7 @@ function render(){
   document.getElementById('c-clock').textContent=fmtET();
   document.getElementById('d-date').value=VIEW;
   const w=windowAt(etMins()), kz=document.getElementById('c-kz');
-  kz.textContent=w.n; kz.className='chip '+(w.ok?'kz-live':'kz-block');
+  kz.textContent=w.n; kz.className='chip '+(w.ok||w.n==='DEAD ZONE'?'kz-live':'kz-block');
 
   document.getElementById('f-panelf').value=d.panelF||'';
   document.getElementById('f-phasef').value=d.phaseF||'';
@@ -2681,6 +2756,12 @@ function render(){
   document.getElementById('f-plfired').value   = (d.plFired||'');
   document.getElementById('f-plcleared').value = (d.plCleared||'');
   document.getElementById('f-plfires').value   = (d.plFires??'');
+  /* [v5.4.5] */
+  document.getElementById('f-sofired').value   = (d.soFired||'');
+  document.getElementById('f-socleared').value = (d.soCleared||'');
+  document.getElementById('f-sofires').value   = (d.soFires??'');
+  document.getElementById('f-sosrc').value     = (d.soSrc||'');
+  document.getElementById('f-soside').value    = (d.soSide||'LONG');
   paintCeilMargin(d);
   paintCard(d);
   document.getElementById('f-vix').value=d.vix||'';
@@ -2846,6 +2927,9 @@ function render(){
       +'<span class="'+cls+'" onclick="editTrade('+i+')" style="cursor:pointer">'+money(+x.pnl||0)+'</span>'
       +'<span class="c6" onclick="editTrade('+i+')" style="cursor:pointer">'+(x.conf||'—').replace('/6','')+'/'+f2+'</span>'
       +'<span onclick="editTrade('+i+')" style="cursor:pointer"><div class="setupline">'+meta+'</div>'
+        +(sawCount(x)||x.sawVs?'<div class="setupline" style="color:var(--cy1)">saw ('+sawCount(x)+'): '
+          +sawList(x).map(([l,v])=>'<b>'+l.toLowerCase()+'</b> '+v).join(' · ')
+          +(x.sawVs?' · <span style="color:var(--o1)"><b>against</b> '+x.sawVs+'</span>':'')+'</div>':'')
         +(x.flags.length?'<div class="flags">'+x.flags.join(' · ')+'</div>':'')+'</span>'
       +'<button class="del" title="Delete" onclick="delTrade('+i+')">&times;</button></div>';
   }).join(''):'<div class="empty">No trades on this day.<br>A zero-trade day still counts toward the 30 — close it out below.</div>';
@@ -2871,8 +2955,8 @@ function render(){
   }).join(''):'<div class="empty">Nothing logged.<br>A day with no passes is a day you took every setup you saw — worth checking that is true.</div>';
 
   document.getElementById('grade-hint').textContent=
-    viol>0?viol+' violation'+(viol>1?'s':'')+' logged — a C or D unless you can defend it'
-          :(soft>0?'No violations · '+soft+' field'+(soft>1?'s':'')+' left blank':'No violations logged');
+    viol>0?viol+' hard tag'+(viol>1?'s':'')+' logged — what did '+(viol>1?'they':'it')+' teach?'
+          :(soft>0?'No hard tags · '+soft+' field'+(soft>1?'s':'')+' left blank':'No tags logged');
 
   /* [v5.0.0] The ladder is drawn for the DAY's account. Every figure on the tab
      moves when that selector moves, because the ladder is a property of the
@@ -3366,6 +3450,43 @@ function renderStats(){
       return {label:k,bar:wr,cls:x.n<10?'':(x.net>0?'hi':'lo'),value:x.n+' adds · '+x.ctr+' ctr · '+wr+'% · '+money(x.net)};});
     bdStat('bd-adds',rows,'An add = an entry while the same side was already open on that account. "Trade working" = the first entry was in profit at the moment of the add. Set WHERE VS THE PA LEVEL on each add — the import cannot see it.');
   }
+  /* ── [v5.4.5] SHAKEOUT ALERT ──────────────────────────────────────────
+     Every parcel on a day where the alert was recorded, split by whether it was
+     printing at the entry and whether the trade was on the alert's side. The
+     comparison that matters is WITH the alert vs the SAME direction without it,
+     on recorded days — not alert vs everything. Days with no clock are left out
+     and counted, so an empty clock can never read as "the alert was absent". */
+  { const g={}; let unk=0;
+    T.forEach(t=>{ const d=DB.days[t.date]; const s=shakeoutAt(d,t.mins);
+      if(!s){ unk++; return; }
+      const k=(s==='YES'?'alert LIVE · '+vsShakeoutOf(t,d)+' it':'alert not live')+' · '+t.dir;
+      const x=g[k]||(g[k]={n:0,w:0,net:0}); x.n++; if(netOf(t)>0)x.w++; x.net+=netOf(t); });
+    bdStat('bd-shake',Object.keys(g).sort((a,b)=>g[b].n-g[a].n).map(k=>{const x=g[k],wr=Math.round(x.w/x.n*100);
+      return {label:k,bar:wr,cls:x.n<10?'':(x.net>0?'hi':'lo'),value:x.n+' · '+wr+'% · '+money(x.net)};}),
+      'Recorded, not enforced. Compare "alert LIVE · WITH it · LONG" against "alert not live · LONG" on the same kind of day. '
+      +(unk?unk+' parcel'+(unk>1?'s':'')+' on days with no shakeout clock left out (unknown, not absent). ':'')
+      +'Under 10 in a row is not a finding.');
+  }
+
+  /* ── [v5.4.6] WHAT I SAW ──────────────────────────────────────────────
+     Every reason value on every parcel, prefixed with its field. A parcel with
+     three reasons appears in three rows, so the rows do not sum to the total.
+     Trades logged before v5.4.6 have no reasons and are counted, not guessed. */
+  { const g={}; let none=0;
+    const add=(k,t)=>{ const x=g[k]||(g[k]={n:0,w:0,net:0}); x.n++; if(netOf(t)>0)x.w++; x.net+=netOf(t); };
+    T.forEach(t=>{ const L=sawList(t); if(!L.length&&!t.sawVs){ none++; return; }
+      L.forEach(([l,v])=>add(l+' · '+v,t)); if(t.sawVs) add('AGAINST · '+t.sawVs,t); });
+    bdStat('bd-saw',Object.keys(g).sort((a,b)=>g[b].n-g[a].n).map(k=>{const x=g[k],wr=Math.round(x.w/x.n*100);
+      return {label:k,bar:wr,cls:x.n<10?'':(x.net>0?'hi':'lo'),value:x.n+' · '+wr+'% · '+money(x.net)};}),
+      'Recorded, not enforced — this is what the chart showed you, next to what it paid. '
+      +(none?none+' parcel'+(none>1?'s':'')+' with nothing recorded left out. ':'')+'Under 10 is not a finding yet.');
+    const c={};
+    T.forEach(t=>{ const L=sawList(t); if(!L.length&&!t.sawVs) return; const k=L.length+' of 5'+(t.sawVs&&!/^Nothing/.test(t.sawVs)?' · with something against':'');
+      const x=c[k]||(c[k]={n:0,w:0,net:0}); x.n++; if(netOf(t)>0)x.w++; x.net+=netOf(t); });
+    bdStat('bd-sawn',Object.keys(c).sort().reverse().map(k=>{const x=c[k],wr=Math.round(x.w/x.n*100);
+      return {label:k,bar:wr,cls:x.n<10?'':(x.net>0?'hi':'lo'),value:x.n+' · '+wr+'% · '+money(x.net)};}),
+      'Does more lining up pay more? The question this answers once each row has 10+.');
+  }
 
   /* ── PASSED SETUPS ─────────────────────────────────────────────────────
      The half of the distribution a normal journal discards. Grouped by the
@@ -3412,8 +3533,8 @@ function renderStats(){
     const g=accG[k], nd=Object.keys(g.days).length;
     const vpd=nd?g.hard/nd:0;
     return {label:k,bar:g.n,cls:vpd<=0.5?'hi':vpd>=2?'lo':'',
-      value:money(g.pnl)+' · '+g.n+'t · '+(g.n?(g.qty/g.n).toFixed(1):'0')+' avg lot · '+vpd.toFixed(1)+' viol/day'};
-  }),'Violations per day is the column that matters. A gap between accounts is the size of the pressure the money is putting on you.');
+      value:money(g.pnl)+' · '+g.n+'t · '+(g.n?(g.qty/g.n).toFixed(1):'0')+' avg lot · '+vpd.toFixed(1)+' tags/day'};
+  }),'Tags per day is the column to watch. A gap between accounts shows where the money changes how the plan gets followed.');
 
   /* ── BY FIRM ────────────────────────────────────────────────────────────
      Accounts differ twice over: the firm's rules, and the money on the line.
@@ -3437,8 +3558,8 @@ function renderStats(){
     return {label:k+' ('+na+' acct'+(na===1?'':'s')+')',bar:g.n,
       cls:vpd<=0.5?'hi':vpd>=2?'lo':'',
       value:wr+'% · '+(g.rn?(g.r/g.rn>=0?'+':'')+(g.r/g.rn).toFixed(2)+'R':'—')
-            +' · '+g.n+'t · '+vpd.toFixed(1)+' viol/day'};
-  }),'Win rate and average R are comparable across firms; dollars are not, because the buffers differ. A gap in violations per day between two firms is the rule set talking. The same gap between accounts INSIDE one firm is not — that one is you.');
+            +' · '+g.n+'t · '+vpd.toFixed(1)+' tags/day'};
+  }),'Win rate and average R are comparable across firms; dollars are not, because the buffers differ. A gap in tags per day between two firms is the rule set talking. The same gap between accounts inside one firm points at the account, not the rules.');
 
   // THE FIX THAT KEEPS COMING BACK — counts days, not trades
   const gf={};
@@ -3754,6 +3875,13 @@ function doneForDay(){
    Imported trades arrive with the judgement fields blank. This is how they get
    completed, and how a typo gets fixed without deleting and retyping. */
 let EDIT_IX=-1;
+/* [v5.4.6] WHAT I SAW. Five reason fields plus one for what argued against.
+   saw_count counts the five reasons only — the "against" field is the other side
+   of the ledger and never adds to it. */
+const SAW_IDS=[['t-saw-pat','sawPat','PATTERN'],['t-saw-lead','sawLead','LEADER'],['t-saw-flow','sawFlow','FLOW'],['t-saw-mkt','sawMkt','MARKET'],['t-saw-ctx','sawCtx','CONTEXT'],['t-saw-vs','sawVs','AGAINST']];
+function sawList(t){ return SAW_IDS.slice(0,5).filter(([,k])=>t[k]).map(([,k,l])=>[l,t[k]]); }
+function sawCount(t){ return sawList(t).length; }
+function is5m3br(t){ return /5m three-bar reversal/i.test((t.sawPat||'')+'|'+(t.trig||'')); }
 const FORM_IDS=['t-time','t-out','t-ins','t-dir','t-qty','t-conf','t-f2','t-loc','t-setup','t-trig','t-stop','t-res','t-pnl','t-exit','t-note'];
 
 function editTrade(i){
@@ -3770,6 +3898,7 @@ function editTrade(i){
   document.getElementById('t-loc').value=t.loc||'';
   document.getElementById('t-setup').value=t.setup||'';
   document.getElementById('t-trig').value=t.trig||'';
+  SAW_IDS.forEach(([id,k])=>{ document.getElementById(id).value=t[k]||''; });
   document.getElementById('t-stop').value=(+t.stopPts||'')||'';
   document.getElementById('t-nostop').checked=!!t.noStop;
   document.getElementById('t-tp').value=(+t.tp||'')||'';
@@ -3824,6 +3953,9 @@ function addTrade(override){
     loc:document.getElementById('t-loc').value,
     setup:document.getElementById('t-setup').value,
     trig:document.getElementById('t-trig').value,
+    sawPat:document.getElementById('t-saw-pat').value, sawLead:document.getElementById('t-saw-lead').value,
+    sawFlow:document.getElementById('t-saw-flow').value, sawMkt:document.getElementById('t-saw-mkt').value,
+    sawCtx:document.getElementById('t-saw-ctx').value, sawVs:document.getElementById('t-saw-vs').value,
     stopPts:+document.getElementById('t-stop').value||0,
     grp:document.getElementById('t-grp').value.trim(),
     tp:Math.abs(+document.getElementById('t-tp').value||0),
@@ -3872,6 +4004,7 @@ function addTrade(override){
   document.getElementById('t-grp').value='';
   document.getElementById('t-mgmt').value='';
   document.getElementById('t-addpa').value=''; document.getElementById('t-zpt').value=''; document.getElementById('t-addinfo').textContent='\u00a0';
+  SAW_IDS.forEach(([id])=>{ document.getElementById(id).value=''; });
   document.getElementById('t-sttest').checked=!!d.stTestDay;
   /* RANGE USED is a habit, not a per-trade choice — leave it set for the next trade. */
   save();
@@ -3945,7 +4078,14 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   'price_lie_fired_at','price_lie_cleared_at','price_lie_fires',
   /* [v5.4.3] Appended, never inserted. */
   'state_test','vs_state','management','location_range',
-  /* [v5.4.4] */ 'is_add','add_number','first_entry_pts_at_add','add_vs_pa','zone_point']);
+  /* [v5.4.4] */ 'is_add','add_number','first_entry_pts_at_add','add_vs_pa','zone_point',
+  /* [v5.4.5] Appended, never inserted. */
+  'shakeout_fired_at','shakeout_cleared_at','shakeout_fires','shakeout_source','shakeout_side',
+  'shakeout_at_entry','vs_shakeout',
+  /* [v5.4.6] Appended, never inserted. */
+  'saw_pattern','saw_leader','saw_flow','saw_market','saw_context','saw_against','saw_count','tbr_5m']);
+function soDayCols(d){ return [d.soFired||'', d.soCleared||'', (d.soFires===''||d.soFires==null)?'':+d.soFires,
+  d.soSrc||'', (d.soFired?(d.soSide||'LONG'):'')]; }
 const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
 
 /* [v5.4.0] The six DAY columns that follow the metric columns. Same contract as
@@ -3988,7 +4128,8 @@ function buildRows(wide){
         .concat(['','','','',''])
         .concat(dayCols(d))
         .concat([(d.stTestDay?'DAY':''),'','',''])
-        .concat(['','','','',''])):base);
+        .concat(['','','','',''])
+        .concat(soDayCols(d)).concat(['',''])):base);
     }
     d.trades.forEach(t=>{
       const base=[k,n,(t.ins||'MNQ'),fmtMins(t.mins),t.window,t.dir,t.qty,t.conf,t.res,(+t.pnl||0).toFixed(2),
@@ -4028,7 +4169,9 @@ function buildRows(wide){
                  mBelowCardMin(d,t)?1:0])
         .concat(dayCols(d))
         .concat([(isStTest(t,d)?'YES':''),vsStateOf(t,d),(t.mgmt||''),(t.rng||'')])
-        .concat([(t.isAdd?'YES':''),(t.isAdd?t.addN:''),(t.addFirstPts!=null?t.addFirstPts:''),(t.addPa||''),(t.zpt||'')])):base);
+        .concat([(t.isAdd?'YES':''),(t.isAdd?t.addN:''),(t.addFirstPts!=null?t.addFirstPts:''),(t.addPa||''),(t.zpt||'')])
+        .concat(soDayCols(d)).concat([shakeoutAt(d,t.mins),vsShakeoutOf(t,d)])
+        .concat([t.sawPat||'',t.sawLead||'',t.sawFlow||'',t.sawMkt||'',t.sawCtx||'',t.sawVs||'',sawCount(t),is5m3br(t)?'YES':''])):base);
     });
   });
   return out;
@@ -4340,7 +4483,7 @@ function emitTrades(byDay,stops,open){
         date:dt, mins:e.mins, outMins:e.outMins, grp:e.grp,
         sec:(e.sec!=null?e.sec:null), outSec:(e.outSec!=null?e.outSec:null),
         ins:e.prod, dir:e.dir>0?'LONG':'SHORT', qty:Math.round(e.qty),
-        conf:'', f2:'', loc:'', setup:'', trig:'',
+        conf:'', f2:'', loc:'', setup:'', trig:'', sawPat:'', sawLead:'', sawFlow:'', sawMkt:'', sawCtx:'', sawVs:'',
         stopPts:Math.round(stopPts*4)/4, tp:0, tact:'', noStop:false,
         mae:0, mfe:0, postRun:0,
         res: pnl>0.004?'WIN':(pnl<-0.004?'LOSS':'BREAKEVEN'),
@@ -4564,6 +4707,12 @@ function migrate(){
     if(d.plFired===undefined)   d.plFired='';
     if(d.plCleared===undefined) d.plCleared='';
     if(d.plFires===undefined)   d.plFires='';
+    /* [v5.4.5] Older days: shakeout never recorded → blank, which reads as UNKNOWN. */
+    if(d.soFired===undefined)   d.soFired='';
+    if(d.soCleared===undefined) d.soCleared='';
+    if(d.soFires===undefined)   d.soFires='';
+    if(d.soSrc===undefined)     d.soSrc='';
+    if(d.soSide===undefined)    d.soSide='LONG';
     if(d.panelF==='PRICE_LIE'){ d.panelF='CONTRACTING'; d.priceLie=true; }
     /* [v5.3.0 / DEFECT 59] PHASE and MOMENTUM were never captured before this
        version, and no amount of inference recovers them -- a card guessed from
@@ -4661,6 +4810,22 @@ async function load(){
     }
     paintCeilMargin(d); recompute(d); save();
   });
+});
+
+/* [v5.4.5] Shakeout alert inputs. Recorded only: they repaint the breakdown, never
+   the ceiling. Explicit ids, asserted present below. */
+['f-sofired','f-socleared','f-sofires','f-sosrc','f-soside'].forEach(id=>{
+  const el=document.getElementById(id);
+  const h=e=>{
+    const d=day(), v=e.target.value;
+    if(id==='f-sofired')        d.soFired=v;
+    else if(id==='f-socleared') d.soCleared=v;
+    else if(id==='f-sofires')   d.soFires=v;
+    else if(id==='f-sosrc')     d.soSrc=v;
+    else                        d.soSide=v||'LONG';
+    save();
+  };
+  el.addEventListener('input',h); el.addEventListener('change',h);
 });
 
 /* The margin is shown, never stored. <0 unwinnable, 0 zero-margin, >=1 normal —
@@ -4763,7 +4928,7 @@ setInterval(()=>{ if(lockState()) paintLock(); },1000);
 setInterval(()=>{
   document.getElementById('c-clock').textContent=fmtET();
   const w=windowAt(etMins()), kz=document.getElementById('c-kz');
-  kz.textContent=w.n; kz.className='chip '+(w.ok?'kz-live':'kz-block');
+  kz.textContent=w.n; kz.className='chip '+(w.ok||w.n==='DEAD ZONE'?'kz-live':'kz-block');
   preflight();
 },20000);
 
