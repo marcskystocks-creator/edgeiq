@@ -1,5 +1,16 @@
 <!DOCTYPE html>
-<!-- EDGEIQ Journal v5.4.8 — 10 Nov 2026
+<!-- EDGEIQ Journal v5.4.9 — 10 Nov 2026
+     v5.4.9 — BAR-2 SWEEP. Marc 10 Nov 2026, 13:00 ET: "yes add it".
+     From the MNQ/MES 15m test (73 days): 3BRs whose bar 2 made NO new session high/low
+     carried nearly all the losses (-16R to -20R); bar 2 sweeping the session extreme was the
+     best group; a sweep 3BR AGAINST the locked STATE lost on every measure (3W/8L, 0/8 at 2R).
+       · New trade and pass field BAR 2 SWEPT: RTH session high/low · overnight / London /
+         Asia high/low · no new high/low.
+       · New BREAKDOWN panel: every 3BR by sweep x with/against STATE.
+       · The every-3BR panel adds the sweep to its key.
+       · Export appends bar2_sweep; passes export appends bar2_sweep.
+     Recorded, never scored — nothing here feeds a tag, the ceiling or the three metrics.
+     v5.4.8 — 10 Nov 2026
      v5.4.8 — 3-BAR REVERSAL SETUP TRACKING. Marc 10 Nov 2026, 12:23 ET: "lets build this".
      From the 10 Nov study (81 sessions of 15m, 26 of 5m): the 3BR on its own is a coin
      flip; the one cell that stood out was CONTRACTING + SHORT + 15m 3BR with bar 2 inside a
@@ -47,7 +58,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.8</title>
+<title>EDGEIQ — Journal v5.4.9</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -214,7 +225,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.4.8</div>
+    <div class="chip" title="build version">v5.4.9</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -556,6 +567,15 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       <div><label class="lbl" for="t-paper">PAPER</label>
         <label class="nostop" style="margin-top:6px"><input type="checkbox" id="t-paper"/> paper fill — not live money</label></div>
     </div>
+    <div class="grid g2" style="margin-bottom:7px">
+      <div><label class="lbl" for="t-sweep">BAR 2 SWEPT (the 3BR's middle bar)</label><select class="sel" id="t-sweep">
+        <option value="">not set / not a 3BR</option>
+        <option value="SESSION">New RTH session high / low</option>
+        <option value="ON">Overnight / London / Asia high / low</option>
+        <option value="NONE">No new high / low — mid-range</option>
+      </select></div>
+      <div class="help" style="margin-top:18px">Shorts: did bar 2 make a new high? Longs: a new low? Backtest: no-sweep 3BRs carried the losses.</div>
+    </div>
 
     <div class="grid g3" style="margin-bottom:4px">
       <div><label class="lbl" for="t-mae">HEAT — MAE (PTS)</label><input class="inp" id="t-mae" type="number" step="0.25" min="0" placeholder="4.25"/><div class="tickecho" id="t-mae-tk">&nbsp;</div></div>
@@ -651,6 +671,9 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       <div><label class="lbl" for="x-depth">3BR ENTRY DEPTH THE LIMIT WAS AT</label><select class="sel" id="x-depth">
         <option value="">not set / not a 3BR</option><option value="CLOSE">Bar-3 close</option><option value="25">25% into the body</option>
         <option value="50">50% into the body</option><option value="75">75% into the body</option></select></div>
+      <div><label class="lbl" for="x-sweep">BAR 2 SWEPT</label><select class="sel" id="x-sweep">
+        <option value="">not set / not a 3BR</option><option value="SESSION">New RTH session high / low</option>
+        <option value="ON">Overnight / London / Asia high / low</option><option value="NONE">No new high / low — mid-range</option></select></div>
     </div>
     <div class="grid g2" style="margin-bottom:7px">
       <div><label class="lbl" for="x-pts">POINTS IT WOULD HAVE MADE OR LOST</label><input class="inp" id="x-pts" type="number" step="0.25" placeholder="18.25 or -12.00"/></div>
@@ -792,6 +815,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">ENTRY POINT IN THE ZONE — FIRST ENTRIES vs ADDS (parcels)</div><div id="bd-zpt"></div></div>
     <div class="bd"><div class="bd-t">SETUP A — CONTRACTING + SHORT + 15m 3BR OFF A 1H/4H SIBI, BY ENTRY DEPTH (parcels)</div><div id="bd-setupa"></div></div>
     <div class="bd"><div class="bd-t">EVERY 3-BAR REVERSAL — STATE × SIDE × HTF GAP (parcels)</div><div id="bd-tbrctx"></div></div>
+    <div class="bd"><div class="bd-t">EVERY 3-BAR REVERSAL — BAR 2 SWEEP × WITH / AGAINST STATE (parcels)</div><div id="bd-tbrsweep"></div></div>
     <div class="bd"><div class="bd-t">SCALING IN — EVERY ADD, BY WHERE IT WENT IN AND WHETHER THE TRADE WAS WORKING</div><div id="bd-adds"></div></div>
     <div class="bd"><div class="bd-t">SHAKEOUT ALERT — LIVE AT ENTRY vs NOT, BY DIRECTION (parcels)</div><div id="bd-shake"></div></div>
     <div class="bd"><div class="bd-t">WHAT I SAW → RESULT (parcels)</div><div id="bd-saw"></div></div>
@@ -2992,6 +3016,7 @@ function render(){
       +(x.mgmt?x.mgmt+' · ':'')
       +(x.paper?'<b style="color:var(--y1)">PAPER</b> · ':'')
       +(x.gap?(x.gap==='NONE'?'no HTF gap':x.gap)+' · ':'')
+      +(x.sweep?({SESSION:'bar 2 swept session',ON:'bar 2 swept overnight',NONE:'bar 2 no sweep'}[x.sweep])+' · ':'')
       +(x.depth?'3BR '+(x.depth==='CLOSE'?'close':x.depth+'% body')+' · ':'')
       +(x.rr?({STOP:'stopped <1R','1R':'1R','2R':'2R+',MANUAL:'closed <1R'}[x.rr])+' · ':'')
       +(x.zpt?'zone '+({LOW:'low',25:'25%',CE:'C.E.',75:'75%',HIGH:'high',WICK:'wick through',NOZONE:'none'}[x.zpt]||x.zpt)+' · ':'')
@@ -3033,7 +3058,7 @@ function render(){
     return '<div class="xtr'+(worked?' worked':'')+'">'
       +'<span>'+fmtMins(x.mins)+'</span><span>'+x.dir+'</span>'
       +'<span>'+((x.conf||'—').replace('/6',''))+'</span>'
-      +'<span class="setupline">'+(x.why||'no reason logged')+((x.gap||x.depth)?' · '+[x.gap==='NONE'?'no HTF gap':x.gap,x.depth?('3BR '+(x.depth==='CLOSE'?'close':x.depth+'% body')):''].filter(Boolean).join(' · '):'')+(x.note?'<br>'+x.note:'')+'</span>'
+      +'<span class="setupline">'+(x.why||'no reason logged')+((x.gap||x.depth||x.sweep)?' · '+[x.gap==='NONE'?'no HTF gap':x.gap,x.depth?('3BR '+(x.depth==='CLOSE'?'close':x.depth+'% body')):'',x.sweep?({SESSION:'swept session',ON:'swept overnight',NONE:'no sweep'}[x.sweep]):''].filter(Boolean).join(' · '):'')+(x.note?'<br>'+x.note:'')+'</span>'
       +'<span class="'+(worked?'loss':'win')+'">'+(x.out?OUTLBL[x.out]||x.out:'not checked')+'</span>'
       +'<span class="x6">'+(x.pts?(x.pts>0?'+':'')+x.pts:'—')+'</span>'
       +'<button class="del" title="Delete" onclick="delPass('+i+')">&times;</button></div>';
@@ -3546,11 +3571,25 @@ function renderStats(){
     T.forEach(t=>{ const tf=tbrTf(t); if(!tf) return; const d=DB.days[t.date];
       const st=d&&d.panelF?({CONTRACTING:'CON',EXPANDING:'EXP',STALLED:'STALL'}[d.panelF]||d.panelF):'state not set';
       const gp=!t.gap?'gap not set':(/SIBI|BISI/.test(t.gap)?((t.dir==='SHORT'&&/SIBI/.test(t.gap))||(t.dir==='LONG'&&/BISI/.test(t.gap))?'at '+t.gap:'opposite gap'):(t.gap==='NONE'?'no gap':'other FVG/OB'));
-      const k=tf+' · '+st+' · '+t.dir+' · '+gp;
+      const sw={SESSION:'swept session',ON:'swept overnight',NONE:'no sweep'}[t.sweep]||'sweep not set';
+      const k=tf+' · '+st+' · '+t.dir+' · '+gp+' · '+sw;
       const x=c[k]||(c[k]={n:0,w:0,l:0,R:0,rn:0,net:0}); x.n++; if(isW(t))x.w++; if(isL(t))x.l++; if(t.rMult!=null){x.R+=t.rMult;x.rn++;} x.net+=netOf(t); });
     bdStat('bd-tbrctx',Object.keys(c).sort((a,b)=>c[b].n-c[a].n).map(k=>{const x=c[k];
       return {label:k,bar:x.rn?x.R/x.rn:0,cls:x.n<10?'':(x.R>0?'hi':'lo'),value:x.n+' · '+x.w+'W/'+x.l+'L · '+(x.rn?(x.R>=0?'+':'')+x.R.toFixed(1)+'R':'R n/a')+' · '+money(x.net)};}),
       'Every parcel whose trigger or pattern is a 1m / 5m / 15m three-bar reversal. Backtest (10 Nov): contracting-day shorts were the best cell and expanding-day longs the worst. Paper and live are mixed here; Setup A splits them. Under 10 in a row is not a finding.');
+  }
+  /* ── [v5.4.9] BAR-2 SWEEP x STATE ── */
+  { const isW=t=>t.rr?(t.rr==='1R'||t.rr==='2R'):netOf(t)>0, isL=t=>t.rr?(t.rr==='STOP'):netOf(t)<0;
+    const c={};
+    T.forEach(t=>{ if(!tbrTf(t)) return; const d=DB.days[t.date]; const ss=stateSide(d);
+      const vs=!ss?'state not set':(ss===t.dir?'WITH STATE':'AGAINST STATE');
+      const sw={SESSION:'swept session',ON:'swept overnight',NONE:'no sweep'}[t.sweep]||'sweep not set';
+      const k=sw+' · '+vs+' · '+(t.paper?'PAPER':'LIVE');
+      const x=c[k]||(c[k]={n:0,w:0,l:0,R:0,rn:0,net:0}); x.n++; if(isW(t))x.w++; if(isL(t))x.l++; if(t.rMult!=null){x.R+=t.rMult;x.rn++;} x.net+=netOf(t); });
+    bdStat('bd-tbrsweep',Object.keys(c).sort((a,b)=>c[b].n-c[a].n).map(k=>{const x=c[k];
+      return {label:k,bar:x.rn?x.R/x.rn:0,cls:x.n<10?'':(x.R>0?'hi':'lo'),value:x.n+' · '+x.w+'W/'+x.l+'L · '+(x.rn?(x.R>=0?'+':'')+x.R.toFixed(1)+'R':'R n/a')+' · '+money(x.net)};}),
+      'Backtest (10 Nov, 15m, 73 days): no-sweep 3BRs -16R to -20R at 1R; sweep + WITH STATE 7W/1L; sweep + AGAINST STATE 3W/8L, 0/8 at 2R. '
+      +'WITH/AGAINST uses the locked STATE (EXPANDING = long, CONTRACTING = short). Under 10 in a row is not a finding.');
   }
   /* ── [v5.4.4] SCALING IN ──────────────────────────────────────────────
      One row per add (a parcel opened while the same side was already open on
@@ -4036,6 +4075,7 @@ function editTrade(i){
   document.getElementById('t-depth').value=t.depth||'';
   document.getElementById('t-rr').value=t.rr||'';
   document.getElementById('t-paper').checked=!!t.paper;
+  document.getElementById('t-sweep').value=t.sweep||'';
   document.getElementById('t-addinfo').textContent=t.isAdd?('ADD #'+t.addN+(t.addFirstPts!=null?' · first entry '+(t.addFirstPts>0?'+':'')+t.addFirstPts+' pts at this add':'')):'\u00a0';
   document.getElementById('t-sttest').checked=isStTest(t,d);
   document.getElementById('t-note').value=t.note||'';
@@ -4098,6 +4138,7 @@ function addTrade(override){
     zpt:document.getElementById('t-zpt').value,
     gap:document.getElementById('t-gap').value, depth:document.getElementById('t-depth').value,
     rr:document.getElementById('t-rr').value, paper:!!document.getElementById('t-paper').checked,
+    sweep:document.getElementById('t-sweep').value,
     /* Stored explicitly only when it differs from the day: the day toggle stays
        the single switch for an ordinary test day. */
     stTest:(document.getElementById('t-sttest').checked===!!d.stTestDay)?undefined:document.getElementById('t-sttest').checked,
@@ -4132,7 +4173,7 @@ function addTrade(override){
   document.getElementById('t-mgmt').value='';
   document.getElementById('t-addpa').value=''; document.getElementById('t-zpt').value=''; document.getElementById('t-addinfo').textContent='\u00a0';
   /* [v5.4.8] HTF GAP and PAPER stay set for the next parcel of the same idea; depth and R reset. */
-  document.getElementById('t-depth').value=''; document.getElementById('t-rr').value='';
+  document.getElementById('t-depth').value=''; document.getElementById('t-rr').value=''; document.getElementById('t-sweep').value='';
   SAW_IDS.forEach(([id])=>{ document.getElementById(id).value=''; });
   document.getElementById('t-sttest').checked=!!d.stTestDay;
   /* RANGE USED is a habit, not a per-trade choice — leave it set for the next trade. */
@@ -4152,9 +4193,10 @@ function addPass(){
     out:document.getElementById('x-out').value,
     pts:+document.getElementById('x-pts').value||0,
     note:document.getElementById('x-note').value.trim(),
-    gap:document.getElementById('x-gap').value, depth:document.getElementById('x-depth').value
+    gap:document.getElementById('x-gap').value, depth:document.getElementById('x-depth').value,
+    sweep:document.getElementById('x-sweep').value
   });
-  document.getElementById('x-depth').value='';
+  document.getElementById('x-depth').value=''; document.getElementById('x-sweep').value='';
   ['x-time','x-pts','x-note'].forEach(id=>document.getElementById(id).value='');
   recompute(d); save();
 }
@@ -4216,10 +4258,11 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   /* [v5.4.6] Appended, never inserted. */
   'saw_pattern','saw_leader','saw_flow','saw_market','saw_context','saw_against','saw_count','tbr_5m',
   /* [v5.4.8] Appended, never inserted. */
-  'htf_gap','tbr_entry_depth','r_reached','paper','tbr_15m','setup_a']);
+  'htf_gap','tbr_entry_depth','r_reached','paper','tbr_15m','setup_a',
+  /* [v5.4.9] */ 'bar2_sweep']);
 function soDayCols(d){ return [d.soFired||'', d.soCleared||'', (d.soFires===''||d.soFires==null)?'':+d.soFires,
   d.soSrc||'', (d.soFired?(d.soSide||'LONG'):'')]; }
-const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note','htf_gap','tbr_entry_depth'];
+const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note','htf_gap','tbr_entry_depth','bar2_sweep'];
 
 /* [v5.4.0] The six DAY columns that follow the metric columns. Same contract as
    cardCols: one definition, used by the no-trades row and the trade row, so the
@@ -4305,7 +4348,7 @@ function buildRows(wide){
         .concat([(t.isAdd?'YES':''),(t.isAdd?t.addN:''),(t.addFirstPts!=null?t.addFirstPts:''),(t.addPa||''),(t.zpt||'')])
         .concat(soDayCols(d)).concat([shakeoutAt(d,t.mins),vsShakeoutOf(t,d)])
         .concat([t.sawPat||'',t.sawLead||'',t.sawFlow||'',t.sawMkt||'',t.sawCtx||'',t.sawVs||'',sawCount(t),is5m3br(t)?'YES':''])
-        .concat([t.gap||'',t.depth||'',t.rr||'',(t.paper?'YES':''),(is15m3br(t)?'YES':''),(isSetupA(t,d)?'YES':'')])):base);
+        .concat([t.gap||'',t.depth||'',t.rr||'',(t.paper?'YES':''),(is15m3br(t)?'YES':''),(isSetupA(t,d)?'YES':''),t.sweep||''])):base);
     });
   });
   return out;
@@ -4319,7 +4362,7 @@ function exportFull(){ dumpCSV(true,'edgeiq_journal_FULL_'); }
 function exportPasses(){
   const rows=[];
   Object.keys(DB.days).sort().forEach(k=>(DB.days[k].passes||[]).forEach(x=>
-    rows.push([k,(DB.days[k].acct||''),fmtMins(x.mins),x.ins||'MNQ',x.dir,x.conf||'',x.why||'',x.out||'',(+x.pts||0),x.note||'',x.gap||'',x.depth||''])));
+    rows.push([k,(DB.days[k].acct||''),fmtMins(x.mins),x.ins||'MNQ',x.dir,x.conf||'',x.why||'',x.out||'',(+x.pts||0),x.note||'',x.gap||'',x.depth||'',x.sweep||''])));
   if(!rows.length){ flashCopy('No passed setups logged yet.',true); return; }
   dl([HEADPASS.join(',')].concat(rows.map(r=>r.map(q).join(','))).join('\n'),'text/csv','edgeiq_passes_'+etDate()+'.csv');
 }
