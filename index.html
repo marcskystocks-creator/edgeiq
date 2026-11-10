@@ -1,5 +1,15 @@
 <!DOCTYPE html>
-<!-- EDGEIQ Journal v5.4.6 — 6 Nov 2026
+<!-- EDGEIQ Journal v5.4.7 — 10 Nov 2026
+     1. NEW breakdown: 3BR x STATE (positions). Every trade whose PATTERN or TRIGGER
+        is a 5m or 1m three-bar reversal, split WITH / AGAINST / NO CALL by the day's
+        Panel F STATE (EXPANDING = long side, CONTRACTING = short side). Same STATE
+        read the STATE TEST panels use. Unit = position, net of commission.
+        Recorded, never scored. Read point: 20 WITH positions per timeframe.
+     2. Nothing else changed. No new inputs: tag the pattern in WHAT I SAW or the
+        trigger list, set Panel F STATE in Day Setup — the app does the split.
+     Previous header (v5.4.6) follows.
+     ─────────────────────────────────────────────────────────────────────────
+     EDGEIQ Journal v5.4.6 — 6 Nov 2026
      1. WHAT I SAW: six dropdowns per trade (pattern, leader/whales, Panel R flow,
         MNQ vs MES, context, what argued against). Every one takes OTHER — type it.
         Shown on the trade row; two new breakdown panels; export appends
@@ -14,7 +24,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.6</title>
+<title>EDGEIQ — Journal v5.4.7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -723,6 +733,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">ENTRY POINT IN THE ZONE — FIRST ENTRIES vs ADDS (parcels)</div><div id="bd-zpt"></div></div>
     <div class="bd"><div class="bd-t">SCALING IN — EVERY ADD, BY WHERE IT WENT IN AND WHETHER THE TRADE WAS WORKING</div><div id="bd-adds"></div></div>
     <div class="bd"><div class="bd-t">SHAKEOUT ALERT — LIVE AT ENTRY vs NOT, BY DIRECTION (parcels)</div><div id="bd-shake"></div></div>
+    <div class="bd"><div class="bd-t">3BR × STATE — THREE-BAR REVERSAL WITH vs AGAINST THE DAY'S STATE (positions)</div><div id="bd-3brst"></div></div>
     <div class="bd"><div class="bd-t">WHAT I SAW → RESULT (parcels)</div><div id="bd-saw"></div></div>
     <div class="bd"><div class="bd-t">HOW MANY THINGS LINED UP → RESULT (parcels)</div><div id="bd-sawn"></div></div>
     <div class="bd"><div class="bd-t">PASSED SETUPS — SHARE THAT WOULD HAVE WORKED, BY REASON</div><div id="bd-pass"></div></div>
@@ -3468,6 +3479,30 @@ function renderStats(){
       +'Under 10 in a row is not a finding.');
   }
 
+  /* ── [v5.4.7] 3BR x STATE ─────────────────────────────────────────────
+     Question set 10 Nov: does a three-bar reversal on STATE's side beat one
+     against it? STATE = the day's Panel F STATE at the lock (EXPANDING -> long
+     side, CONTRACTING -> short side, anything else -> NO CALL). Unit is the
+     POSITION, net of commission. Base rate to beat, from the 74-day TradingView
+     run (6 Nov): about 50% at 1R / 33% at 2R. Under 20 per row is not a finding. */
+  { const P={};
+    T.forEach(t=>{ const tf=is5m3br(t)?'5m':(is1m3br(t)?'1m':''); if(!tf) return;
+      const d=DB.days[t.date]; const vs=vsStateOf(t,d)||'NO CALL';
+      const key=t.date+'|'+(t.grp||('#'+t.mins+'|'+t.inPx+'|'+t.dir));
+      const p=P[key]||(P[key]={tf:tf,vs:vs,pnl:0,stop:0});
+      p.pnl+=netOf(t); if(+t.stopPts>0) p.stop=Math.max(p.stop,+t.stopPts); });
+    const g={};
+    Object.values(P).forEach(p=>{ const k=p.tf+' 3BR · '+(p.vs==='NO CALL'?'no STATE call':p.vs+' STATE');
+      const x=g[k]||(g[k]={n:0,w:0,net:0,st:[]}); x.n++; if(p.pnl>0)x.w++; x.net+=p.pnl; if(p.stop>0)x.st.push(p.stop); });
+    const order=['5m 3BR · WITH STATE','5m 3BR · AGAINST STATE','5m 3BR · no STATE call','1m 3BR · WITH STATE','1m 3BR · AGAINST STATE','1m 3BR · no STATE call'];
+    const n=Object.keys(P).length;
+    bdStat('bd-3brst',order.filter(k=>g[k]).map(k=>{ const x=g[k], wr=Math.round(x.w/x.n*100), ms=median(x.st);
+      return {label:k,bar:wr,cls:x.n<20?'':(x.net>0?'hi':'lo'),
+        value:x.n+' pos · '+wr+'% · '+money(x.net)+(ms!==null?' · med stop '+(+ms).toFixed(1)+'pt':'')}; }),
+      (n?n+' three-bar reversal position'+(n>1?'s':'')+'. ':'No three-bar reversal trades yet — pick it as the PATTERN in WHAT I SAW or as the TRIGGER. ')
+      +'WITH must beat AGAINST, not just win. Set Panel F STATE in Day Setup or the trade lands in "no STATE call". Under 20 per row is not a finding.');
+  }
+
   /* ── [v5.4.6] WHAT I SAW ──────────────────────────────────────────────
      Every reason value on every parcel, prefixed with its field. A parcel with
      three reasons appears in three rows, so the rows do not sum to the total.
@@ -3882,6 +3917,7 @@ const SAW_IDS=[['t-saw-pat','sawPat','PATTERN'],['t-saw-lead','sawLead','LEADER'
 function sawList(t){ return SAW_IDS.slice(0,5).filter(([,k])=>t[k]).map(([,k,l])=>[l,t[k]]); }
 function sawCount(t){ return sawList(t).length; }
 function is5m3br(t){ return /5m three-bar reversal/i.test((t.sawPat||'')+'|'+(t.trig||'')); }
+function is1m3br(t){ return /1m three-bar reversal/i.test((t.sawPat||'')+'|'+(t.trig||'')); }
 const FORM_IDS=['t-time','t-out','t-ins','t-dir','t-qty','t-conf','t-f2','t-loc','t-setup','t-trig','t-stop','t-res','t-pnl','t-exit','t-note'];
 
 function editTrade(i){
