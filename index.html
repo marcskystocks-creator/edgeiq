@@ -1,15 +1,38 @@
 <!DOCTYPE html>
-<!-- EDGEIQ Journal v5.4.7 — 10 Nov 2026
-     1. NEW breakdown: 3BR x STATE (positions). Every trade whose PATTERN or TRIGGER
-        is a 5m or 1m three-bar reversal, split WITH / AGAINST / NO CALL by the day's
-        Panel F STATE (EXPANDING = long side, CONTRACTING = short side). Same STATE
-        read the STATE TEST panels use. Unit = position, net of commission.
-        Recorded, never scored. Read point: 20 WITH positions per timeframe.
-     2. Nothing else changed. No new inputs: tag the pattern in WHAT I SAW or the
-        trigger list, set Panel F STATE in Day Setup — the app does the split.
-     Previous header (v5.4.6) follows.
-     ─────────────────────────────────────────────────────────────────────────
-     EDGEIQ Journal v5.4.6 — 6 Nov 2026
+<!-- EDGEIQ Journal v5.4.8 — 10 Nov 2026
+     v5.4.8 — 3-BAR REVERSAL SETUP TRACKING. Marc 10 Nov 2026, 12:23 ET: "lets build this".
+     From the 10 Nov study (81 sessions of 15m, 26 of 5m): the 3BR on its own is a coin
+     flip; the one cell that stood out was CONTRACTING + SHORT + 15m 3BR with bar 2 inside a
+     1H/4H SIBI (9 signals, 5 days — a lead to test forward, not a rule). This build records
+     what that test needs, and nothing here feeds a tag, the ceiling or the three metrics.
+       · Trigger and PATTERN lists gain "15m three-bar reversal".
+       · HTF GAP (4H/1H SIBI, 4H/1H BISI, other FVG/OB, none).
+       · 3BR ENTRY DEPTH — where in bar 3's BODY the fill was: close / 25% / 50% / 75%.
+         Not the same ruler as ENTRY POINT IN THE ZONE, which measures the FVG.
+       · R REACHED — stopped before 1R / 1R not 2R / 2R+ / closed before either.
+       · PAPER — tick it on paper fills; every report splits paper and live.
+       · Passes: "Limit not filled" reason, plus HTF GAP and ENTRY DEPTH, so the limits
+         that never filled are counted with what price did next.
+       · Two BREAKDOWN panels: SETUP A by entry depth (paper / live, R per contract,
+         unfilled limits), and every 3BR by state x side x HTF gap.
+       · Export appends htf_gap, tbr_entry_depth, r_reached, paper, tbr_15m, setup_a.
+         Passes export appends htf_gap, tbr_entry_depth.
+     v5.4.7 — 8 Nov 2026
+     v5.4.7 — STOPS ARE PICKED BY THE SETUP. Decided by Marc 8 Nov 2026, 11:20 ET:
+     "Remove the 25 point stop, I will pick my stop based on the setup", and on the
+     follow-up question, remove the per-trade dollar limit too.
+       · STOP OVER 100-TICK CAP is gone (it only fired on CONTRACTING days).
+       · The per-trade risk budget no longer limits size or raises a tag
+         (RISK n% OF DAY STOP, RISK $ OVER THE $ THIS TRADE WAS ALLOWED).
+         Switch: RULES.PER_TRADE_RISK_CAP. Set it back to true to restore.
+       · Risk-mode accounts were sized from dollars over the stop; with no
+         per-trade dollars they size at BASE_CONTRACTS until a ceiling applies.
+       · Risk is still RECORDED on every trade (risk $, risk % of the day stop)
+         and shown live beside the size, so the cost of a wide stop is visible.
+       · Unchanged: the daily loss limit, the size ladder and ceilings, the
+         3-loss lockout, and the STATE TEST plan v1 sizing (its own written plan).
+     v5.4.6 — 6 Nov 2026
+
      1. WHAT I SAW: six dropdowns per trade (pattern, leader/whales, Panel R flow,
         MNQ vs MES, context, what argued against). Every one takes OTHER — type it.
         Shown on the trade row; two new breakdown panels; export appends
@@ -24,7 +47,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>EDGEIQ — Journal v5.4.7</title>
+<title>EDGEIQ — Journal v5.4.8</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -191,7 +214,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <!-- [v4.5] Version in the UI, not just the tab title. After a Pages deploy
          this is the only way to tell at a glance whether the new build is live
          or the browser is serving a cached old one. -->
-    <div class="chip" title="build version">v5.4.6</div>
+    <div class="chip" title="build version">v5.4.8</div>
     <div class="chip" id="c-clock">--:--</div>
     <div class="chip" id="c-kz">WINDOW</div>
     <div class="chip ceil" id="c-ceil">CEIL —</div>
@@ -429,6 +452,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
           <option>Resting limit at the level</option>
           <option>CE / 50% tap fill</option>
           <option>Break of a micro structure high/low</option>
+          <option>15m three-bar reversal</option>
           <option>5m three-bar reversal</option>
           <option>1m three-bar reversal</option>
           <option value="CHASED">Market order — chased it</option>
@@ -442,7 +466,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
          these fields feeds the tag engine, the ceiling or the three metrics. -->
     <label class="lbl" style="display:block;margin:4px 0 6px;color:var(--acc)">WHAT I SAW — PICK EVERY ONE THAT WAS PART OF THE REASON · OTHER = TYPE YOUR OWN</label>
     <div class="grid g3" style="margin-bottom:7px">
-      <div><label class="lbl" for="t-saw-pat">PATTERN</label><select class="sel" id="t-saw-pat"><option value="">—</option><option>5m three-bar reversal</option><option>1m three-bar reversal</option><option>Rejection candle at level</option><option>Sweep &amp; reclaim</option><option>Displacement through level</option><option>FVG / OB retest</option><option>Double top / bottom</option></select></div>
+      <div><label class="lbl" for="t-saw-pat">PATTERN</label><select class="sel" id="t-saw-pat"><option value="">—</option><option>15m three-bar reversal</option><option>5m three-bar reversal</option><option>1m three-bar reversal</option><option>Rejection candle at level</option><option>Sweep &amp; reclaim</option><option>Displacement through level</option><option>FVG / OB retest</option><option>Double top / bottom</option></select></div>
       <div><label class="lbl" for="t-saw-lead">LEADER / WHALES</label><select class="sel" id="t-saw-lead"><option value="">—</option><option>Leader rejected at EMAs / VWAP</option><option>Leader reclaimed EMAs / VWAP</option><option>Leader lost its open — turned first</option><option>Leader at new low / high of day</option><option>Leader 3-bar reversal</option><option>Whales flipped my way</option><option>Whales mixed</option></select></div>
       <div><label class="lbl" for="t-saw-flow">FLOW — PANEL R</label><select class="sel" id="t-saw-flow"><option value="">—</option><option>VOLD flat / fading against the move</option><option>VOLD building my way</option><option>Risk spread turning my way</option><option>EDGE with me (3+)</option><option>EDGE maxed but fading</option><option>$TICK extreme against the move</option><option>Buying / selling pressure picking up</option></select></div>
       <div><label class="lbl" for="t-saw-mkt">MARKET — MNQ vs MES</label><select class="sel" id="t-saw-mkt"><option value="">—</option><option>MES struggling to break out</option><option>MES not confirming the move</option><option>MES confirming</option><option>MNQ leading MES</option><option>MNQ lagging MES</option><option>Macro (DXY / yields) with me</option></select></div>
@@ -505,6 +529,32 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
       </select></div>
       <div><label class="lbl" for="t-sttest">STATE TEST</label>
         <label class="nostop" style="margin-top:6px"><input type="checkbox" id="t-sttest"/> count this as a STATE test trade <span id="t-vsstate" style="color:var(--gy)"></span></label></div>
+    </div>
+
+    <!-- [v5.4.8] 3-BAR REVERSAL SETUP. Recorded, never scored. -->
+    <label class="lbl" style="display:block;margin:4px 0 6px;color:var(--acc)">3-BAR REVERSAL SETUP — the 10 Nov lead: CONTRACTING + SHORT + 15m 3BR with bar 2 inside a 1H/4H SIBI</label>
+    <div class="grid g4" style="margin-bottom:7px">
+      <div><label class="lbl" for="t-gap">HTF GAP BAR 2 WAS INSIDE</label><select class="sel" id="t-gap">
+        <option value="">not set</option>
+        <option>4H SIBI</option><option>1H SIBI</option><option>4H BISI</option><option>1H BISI</option>
+        <option>Other FVG / OB</option><option value="NONE">None — no gap</option>
+      </select></div>
+      <div><label class="lbl" for="t-depth">3BR ENTRY DEPTH (BAR 3 BODY)</label><select class="sel" id="t-depth">
+        <option value="">not set / not a 3BR</option>
+        <option value="CLOSE">Bar-3 close</option>
+        <option value="25">25% into the body</option>
+        <option value="50">50% into the body</option>
+        <option value="75">75% into the body</option>
+      </select></div>
+      <div><label class="lbl" for="t-rr">R REACHED</label><select class="sel" id="t-rr">
+        <option value="">not set</option>
+        <option value="STOP">Stopped before 1R</option>
+        <option value="1R">Reached 1R, not 2R</option>
+        <option value="2R">Reached 2R or more</option>
+        <option value="MANUAL">Closed before 1R or the stop</option>
+      </select></div>
+      <div><label class="lbl" for="t-paper">PAPER</label>
+        <label class="nostop" style="margin-top:6px"><input type="checkbox" id="t-paper"/> paper fill — not live money</label></div>
     </div>
 
     <div class="grid g3" style="margin-bottom:4px">
@@ -573,6 +623,7 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
             <option>No trigger ever appeared</option>
             <option>Missed the entry — too slow</option>
             <option>Spread or speed made it untradeable</option>
+            <option>Limit not filled</option>
           </optgroup>
           <optgroup label="YOU STOPPED YOU">
             <option value="DISCRETION">Chose not to — discretion, rules allowed it</option>
@@ -592,6 +643,14 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
           <option value="UNKNOWN">Never resolved in the window</option>
         </select>
       </div>
+    </div>
+    <div class="grid g2" style="margin-bottom:7px">
+      <div><label class="lbl" for="x-gap">HTF GAP (3BR SETUP)</label><select class="sel" id="x-gap">
+        <option value="">not set</option><option>4H SIBI</option><option>1H SIBI</option><option>4H BISI</option><option>1H BISI</option>
+        <option>Other FVG / OB</option><option value="NONE">None — no gap</option></select></div>
+      <div><label class="lbl" for="x-depth">3BR ENTRY DEPTH THE LIMIT WAS AT</label><select class="sel" id="x-depth">
+        <option value="">not set / not a 3BR</option><option value="CLOSE">Bar-3 close</option><option value="25">25% into the body</option>
+        <option value="50">50% into the body</option><option value="75">75% into the body</option></select></div>
     </div>
     <div class="grid g2" style="margin-bottom:7px">
       <div><label class="lbl" for="x-pts">POINTS IT WOULD HAVE MADE OR LOST</label><input class="inp" id="x-pts" type="number" step="0.25" placeholder="18.25 or -12.00"/></div>
@@ -731,9 +790,10 @@ label.lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--gy);le
     <div class="bd"><div class="bd-t">STATE TEST — BY CARD AT THE LOCK (positions)</div><div id="bd-stcard"></div></div>
     <div class="bd"><div class="bd-t">STATE TEST — WHICH SETUP WORKS IN WHICH ENVIRONMENT (positions)</div><div id="bd-stsetup"></div></div>
     <div class="bd"><div class="bd-t">ENTRY POINT IN THE ZONE — FIRST ENTRIES vs ADDS (parcels)</div><div id="bd-zpt"></div></div>
+    <div class="bd"><div class="bd-t">SETUP A — CONTRACTING + SHORT + 15m 3BR OFF A 1H/4H SIBI, BY ENTRY DEPTH (parcels)</div><div id="bd-setupa"></div></div>
+    <div class="bd"><div class="bd-t">EVERY 3-BAR REVERSAL — STATE × SIDE × HTF GAP (parcels)</div><div id="bd-tbrctx"></div></div>
     <div class="bd"><div class="bd-t">SCALING IN — EVERY ADD, BY WHERE IT WENT IN AND WHETHER THE TRADE WAS WORKING</div><div id="bd-adds"></div></div>
     <div class="bd"><div class="bd-t">SHAKEOUT ALERT — LIVE AT ENTRY vs NOT, BY DIRECTION (parcels)</div><div id="bd-shake"></div></div>
-    <div class="bd"><div class="bd-t">3BR × STATE — THREE-BAR REVERSAL WITH vs AGAINST THE DAY'S STATE (positions)</div><div id="bd-3brst"></div></div>
     <div class="bd"><div class="bd-t">WHAT I SAW → RESULT (parcels)</div><div id="bd-saw"></div></div>
     <div class="bd"><div class="bd-t">HOW MANY THINGS LINED UP → RESULT (parcels)</div><div id="bd-sawn"></div></div>
     <div class="bd"><div class="bd-t">PASSED SETUPS — SHARE THAT WOULD HAVE WORKED, BY REASON</div><div id="bd-pass"></div></div>
@@ -994,6 +1054,7 @@ const PRODUCTS={
    the trades happened to be placed. */
 const RULES={
   BASE_CONTRACTS:1, MAX_TRADES:30, LOCKOUT_MINUTES:20, STOP_CAP_TICKS:100,
+  PER_TRADE_RISK_CAP:false, // [v5.4.7] Marc 8 Nov: stops picked by setup; no per-trade $ limit
   TICK_SIZE:0.25, MIN_RR:1.5, UNIT_SANITY_PTS:100,
   SESSION_STOP_PCT:10,      // self-imposed session stop, as % of that account's buffer
   RISK_BUDGET_PCT:25,       // most one trade may risk, as % of the session stop
@@ -1595,6 +1656,7 @@ function ceilingReason(d,prior,A){
    flagged for having no stop. */
 function riskCapFor(stopPts,ins,A){
   A=A||CFG;
+  if(!RULES.PER_TRADE_RISK_CAP) return null;   // [v5.4.7]
   const s=+stopPts||0;
   if(s<=0) return null;
   return Math.max(0,Math.floor(budgetOf(A)/(s*pv(ins))));
@@ -1752,7 +1814,7 @@ function tradeCapRisk(d,prior,conf,stopPts,ins,mins,A){
   }
 
   const s=+stopPts||0;
-  let cap = s>0 ? Math.floor(riskDollarsFor(d,conf,A)/(s*pv(ins))) : A.BASE_CONTRACTS;
+  let cap = (RULES.PER_TRADE_RISK_CAP && s>0) ? Math.floor(riskDollarsFor(d,conf,A)/(s*pv(ins))) : A.BASE_CONTRACTS;
 
   if(lo!==null)       cap=Math.min(cap,A.BASE_CONTRACTS);
   else if(streak===2) cap=Math.min(cap,1);
@@ -1961,6 +2023,7 @@ function analyze(t,prior,d,openBefore){
     const allowed=+A.RISK_PER_TRADE||100;
     if(risk>allowed+0.01) f.push('RISK $'+risk.toFixed(2)+' OVER THE $'+allowed.toFixed(2)+' STATE TEST RISK — plan v1');
   }
+  else if(!RULES.PER_TRADE_RISK_CAP){ /* [v5.4.7] recorded, not tagged */ }
   else if(A.RISK_MODE){
     const allowed=riskDollarsFor(d,t.conf,A);
     if(risk>allowed+0.01) f.push('RISK $'+risk.toFixed(2)+' OVER THE $'+allowed.toFixed(2)
@@ -1971,7 +2034,7 @@ function analyze(t,prior,d,openBefore){
       +A.RISK_BUDGET_PCT+'%, that stop affords '+rc
       +' — $'+risk.toFixed(2)+' is '+(risk/A.DRAWDOWN_BUFFER*100).toFixed(1)+'% OF THE $'
       +A.DRAWDOWN_BUFFER+' BUFFER ON '+A.LABEL);
-  if(!TEST&&d.panelF==='CONTRACTING'&&stop>A.STOP_CAP_TICKS*A.TICK_SIZE) f.push('STOP OVER '+A.STOP_CAP_TICKS+'-TICK CAP');
+  /* [v5.4.7] STOP OVER 100-TICK CAP removed — the stop is picked by the setup. */
   }
 
   // ── EXIT DATA
@@ -2606,7 +2669,7 @@ function preflight(){
     if(cd&&!isNoTrade(cd)) wn.push('CARD '+cd.card+' — '+cd.side+' · min '+cd.min+'/6 · depth '+cd.depth+' · '+cd.tgt);
   }
   if(esg<2) wn.push('Emotional state '+esg+'/3 — restricted: 6/6 and 1 contract only');
-  if(d.panelF==='CONTRACTING') wn.push('Contracting — 5/6 minimum, stop capped at '+A.STOP_CAP_TICKS+' ticks');
+  if(d.panelF==='CONTRACTING') wn.push('Contracting — 5/6 minimum');
   if(ratcheted) wn.push('A hard tag is already logged today — ceiling has ratcheted down to '+A.BASE_CONTRACTS);
   if(streak===2) wn.push('Two losses in a row — next entry is 1 contract, and a third triggers the lockout');
   /* The aggregate. Three accounts each inside their own 10% is still 30% of a
@@ -2627,7 +2690,14 @@ function preflight(){
   why.push(A.LABEL);
   why.push('ceiling '+ceil);
   why.push(document.getElementById('t-conf').value);
-  if(A.RISK_MODE){
+  if(!RULES.PER_TRADE_RISK_CAP){
+    /* [v5.4.7] No per-trade limit: show what the stop costs, every time. */
+    const ins=document.getElementById('t-ins').value;
+    const per=stopPts*pv(ins);
+    why.push(stopPts>0?('stop '+stopPts+'pt = $'+per.toFixed(2)+' a contract · $'+(per*Math.max(1,cap)).toFixed(2)
+        +' at '+Math.max(1,cap)+' = '+(A.DAILY_LOSS_LIMIT?Math.round(per*Math.max(1,cap)/A.DAILY_LOSS_LIMIT*100):0)+'% of the '+money(A.DAILY_LOSS_LIMIT)+' day stop')
+      :'no stop entered yet');
+  }else if(A.RISK_MODE){
     const conf=document.getElementById('t-conf').value;
     const usd=riskDollarsFor(d,conf,A);
     why.push(!conf?'set Panel P to size it'
@@ -2653,7 +2723,7 @@ function paintAcctInfo(A){
   A=A||formAcct();
   const bits=[money(A.DRAWDOWN_BUFFER)+' buffer',
               'stop '+money(A.DAILY_LOSS_LIMIT),
-              money(budgetOf(A))+'/trade',
+              (RULES.PER_TRADE_RISK_CAP?money(budgetOf(A))+'/trade':'stop by setup'),
               /* [v5.4.3] A risk-mode account has no ladder; printing one ("ceil 3")
                  next to a cap of 20 read as a contradiction. */
               (A.RISK_MODE?'risk-sized':'ceil '+A.CEILING.EXPANDING_3),
@@ -2920,6 +2990,10 @@ function render(){
       +(x.isTest?'<b style="color:var(--acc)">STATE TEST</b> · ':'')
       +(x.vsState?(x.vsState==='WITH'?'with STATE · ':'<b style="color:var(--y1)">AGAINST STATE</b> · '):'')
       +(x.mgmt?x.mgmt+' · ':'')
+      +(x.paper?'<b style="color:var(--y1)">PAPER</b> · ':'')
+      +(x.gap?(x.gap==='NONE'?'no HTF gap':x.gap)+' · ':'')
+      +(x.depth?'3BR '+(x.depth==='CLOSE'?'close':x.depth+'% body')+' · ':'')
+      +(x.rr?({STOP:'stopped <1R','1R':'1R','2R':'2R+',MANUAL:'closed <1R'}[x.rr])+' · ':'')
       +(x.zpt?'zone '+({LOW:'low',25:'25%',CE:'C.E.',75:'75%',HIGH:'high',WICK:'wick through',NOZONE:'none'}[x.zpt]||x.zpt)+' · ':'')
       +(x.isAdd?'<b style="color:'+(x.addFirstPts!=null&&x.addFirstPts<0?'var(--r1)':'var(--acc)')+'">ADD #'+x.addN
         +(x.addFirstPts!=null?' (first '+(x.addFirstPts>0?'+':'')+x.addFirstPts+'pt)':'')+'</b>'+(x.addPa?' '+x.addPa:'')+' · ':'')
@@ -2959,7 +3033,7 @@ function render(){
     return '<div class="xtr'+(worked?' worked':'')+'">'
       +'<span>'+fmtMins(x.mins)+'</span><span>'+x.dir+'</span>'
       +'<span>'+((x.conf||'—').replace('/6',''))+'</span>'
-      +'<span class="setupline">'+(x.why||'no reason logged')+(x.note?'<br>'+x.note:'')+'</span>'
+      +'<span class="setupline">'+(x.why||'no reason logged')+((x.gap||x.depth)?' · '+[x.gap==='NONE'?'no HTF gap':x.gap,x.depth?('3BR '+(x.depth==='CLOSE'?'close':x.depth+'% body')):''].filter(Boolean).join(' · '):'')+(x.note?'<br>'+x.note:'')+'</span>'
       +'<span class="'+(worked?'loss':'win')+'">'+(x.out?OUTLBL[x.out]||x.out:'not checked')+'</span>'
       +'<span class="x6">'+(x.pts?(x.pts>0?'+':'')+x.pts:'—')+'</span>'
       +'<button class="del" title="Delete" onclick="delPass('+i+')">&times;</button></div>';
@@ -3446,6 +3520,38 @@ function renderStats(){
       return {label:k,bar:wr,cls:x.n<10?'':(x.net>0?'hi':'lo'),value:x.n+' · '+wr+'% · '+money(x.net)};}),
       'Low = 0%, high = 100% of the zone the fill came from, for longs and shorts alike. A long at the C.E. of a BISI and a short at the C.E. of a SIBI both read C.E. Under 10 in a row is not a finding.');
   }
+  /* ── [v5.4.8] SETUP A and every 3BR ─────────────────────────────────
+     R is per contract (t.rMult = points made / stop), so a 10-lot and a 1-lot
+     count the same. A win is R REACHED 1R or 2R when it is set, otherwise net > 0.
+     Unfilled limits come from passes logged "Limit not filled" on the same setup. */
+  { const isW=t=>t.rr?(t.rr==='1R'||t.rr==='2R'):netOf(t)>0, isL=t=>t.rr?(t.rr==='STOP'):netOf(t)<0;
+    const DL={CLOSE:'bar-3 close',25:'25% body',50:'50% body',75:'75% body'};
+    const g={};
+    T.forEach(t=>{ const d=DB.days[t.date]; if(!isSetupA(t,d)) return;
+      const k=(DL[t.depth]||'depth not set')+' · '+(t.paper?'PAPER':'LIVE')+(isPriceLie(d)?' · PRICE LIE day':'');
+      const x=g[k]||(g[k]={n:0,w:0,l:0,r2:0,R:0,rn:0,net:0}); x.n++; if(isW(t))x.w++; if(isL(t))x.l++; if(t.rr==='2R')x.r2++;
+      if(t.rMult!=null){x.R+=t.rMult;x.rn++;} x.net+=netOf(t); });
+    const un={n:0,w:0,s:0};
+    allPasses().forEach(p=>{ const d=DB.days[p.date]; if(p.why!=='Limit not filled'||p.dir!=='SHORT'||!/^(1H|4H) SIBI$/.test(p.gap||'')||!(d&&d.panelF==='CONTRACTING')) return;
+      un.n++; if(p.out==='WORKED'||p.out==='PARTIAL')un.w++; if(p.out==='STOPPED')un.s++; });
+    const rows=Object.keys(g).sort().map(k=>{const x=g[k];
+      return {label:k,bar:x.rn?x.R/x.rn:0,cls:x.n<10?'':(x.R>0?'hi':'lo'),
+        value:x.n+' · '+x.w+'W/'+x.l+'L · 2R '+x.r2+' · '+(x.rn?(x.R>=0?'+':'')+x.R.toFixed(1)+'R ('+(x.R/x.rn>=0?'+':'')+(x.R/x.rn).toFixed(2)+' avg)':'R n/a')+' · '+money(x.net)};});
+    if(un.n) rows.push({label:'limit NOT filled (passes)',bar:0,value:un.n+' · '+un.w+' would have worked · '+un.s+' would have stopped'});
+    bdStat('bd-setupa',rows,
+      'Setup A = Panel F CONTRACTING at the lock + SHORT + trigger or pattern "15m three-bar reversal" + HTF GAP 1H or 4H SIBI. '
+      +'Backtest lead (10 Nov, 9 signals, 5 days): 50% body 5W/0L, 2R 3/3 — found after many cuts, so it proves nothing yet. '
+      +'Read point: 20 setups, live and paper counted separately. Log unfilled limits as a pass, reason "Limit not filled".');
+    const c={};
+    T.forEach(t=>{ const tf=tbrTf(t); if(!tf) return; const d=DB.days[t.date];
+      const st=d&&d.panelF?({CONTRACTING:'CON',EXPANDING:'EXP',STALLED:'STALL'}[d.panelF]||d.panelF):'state not set';
+      const gp=!t.gap?'gap not set':(/SIBI|BISI/.test(t.gap)?((t.dir==='SHORT'&&/SIBI/.test(t.gap))||(t.dir==='LONG'&&/BISI/.test(t.gap))?'at '+t.gap:'opposite gap'):(t.gap==='NONE'?'no gap':'other FVG/OB'));
+      const k=tf+' · '+st+' · '+t.dir+' · '+gp;
+      const x=c[k]||(c[k]={n:0,w:0,l:0,R:0,rn:0,net:0}); x.n++; if(isW(t))x.w++; if(isL(t))x.l++; if(t.rMult!=null){x.R+=t.rMult;x.rn++;} x.net+=netOf(t); });
+    bdStat('bd-tbrctx',Object.keys(c).sort((a,b)=>c[b].n-c[a].n).map(k=>{const x=c[k];
+      return {label:k,bar:x.rn?x.R/x.rn:0,cls:x.n<10?'':(x.R>0?'hi':'lo'),value:x.n+' · '+x.w+'W/'+x.l+'L · '+(x.rn?(x.R>=0?'+':'')+x.R.toFixed(1)+'R':'R n/a')+' · '+money(x.net)};}),
+      'Every parcel whose trigger or pattern is a 1m / 5m / 15m three-bar reversal. Backtest (10 Nov): contracting-day shorts were the best cell and expanding-day longs the worst. Paper and live are mixed here; Setup A splits them. Under 10 in a row is not a finding.');
+  }
   /* ── [v5.4.4] SCALING IN ──────────────────────────────────────────────
      One row per add (a parcel opened while the same side was already open on
      that account), split by whether the first entry was in profit or loss at
@@ -3477,30 +3583,6 @@ function renderStats(){
       'Recorded, not enforced. Compare "alert LIVE · WITH it · LONG" against "alert not live · LONG" on the same kind of day. '
       +(unk?unk+' parcel'+(unk>1?'s':'')+' on days with no shakeout clock left out (unknown, not absent). ':'')
       +'Under 10 in a row is not a finding.');
-  }
-
-  /* ── [v5.4.7] 3BR x STATE ─────────────────────────────────────────────
-     Question set 10 Nov: does a three-bar reversal on STATE's side beat one
-     against it? STATE = the day's Panel F STATE at the lock (EXPANDING -> long
-     side, CONTRACTING -> short side, anything else -> NO CALL). Unit is the
-     POSITION, net of commission. Base rate to beat, from the 74-day TradingView
-     run (6 Nov): about 50% at 1R / 33% at 2R. Under 20 per row is not a finding. */
-  { const P={};
-    T.forEach(t=>{ const tf=is5m3br(t)?'5m':(is1m3br(t)?'1m':''); if(!tf) return;
-      const d=DB.days[t.date]; const vs=vsStateOf(t,d)||'NO CALL';
-      const key=t.date+'|'+(t.grp||('#'+t.mins+'|'+t.inPx+'|'+t.dir));
-      const p=P[key]||(P[key]={tf:tf,vs:vs,pnl:0,stop:0});
-      p.pnl+=netOf(t); if(+t.stopPts>0) p.stop=Math.max(p.stop,+t.stopPts); });
-    const g={};
-    Object.values(P).forEach(p=>{ const k=p.tf+' 3BR · '+(p.vs==='NO CALL'?'no STATE call':p.vs+' STATE');
-      const x=g[k]||(g[k]={n:0,w:0,net:0,st:[]}); x.n++; if(p.pnl>0)x.w++; x.net+=p.pnl; if(p.stop>0)x.st.push(p.stop); });
-    const order=['5m 3BR · WITH STATE','5m 3BR · AGAINST STATE','5m 3BR · no STATE call','1m 3BR · WITH STATE','1m 3BR · AGAINST STATE','1m 3BR · no STATE call'];
-    const n=Object.keys(P).length;
-    bdStat('bd-3brst',order.filter(k=>g[k]).map(k=>{ const x=g[k], wr=Math.round(x.w/x.n*100), ms=median(x.st);
-      return {label:k,bar:wr,cls:x.n<20?'':(x.net>0?'hi':'lo'),
-        value:x.n+' pos · '+wr+'% · '+money(x.net)+(ms!==null?' · med stop '+(+ms).toFixed(1)+'pt':'')}; }),
-      (n?n+' three-bar reversal position'+(n>1?'s':'')+'. ':'No three-bar reversal trades yet — pick it as the PATTERN in WHAT I SAW or as the TRIGGER. ')
-      +'WITH must beat AGAINST, not just win. Set Panel F STATE in Day Setup or the trade lands in "no STATE call". Under 20 per row is not a finding.');
   }
 
   /* ── [v5.4.6] WHAT I SAW ──────────────────────────────────────────────
@@ -3916,8 +3998,11 @@ let EDIT_IX=-1;
 const SAW_IDS=[['t-saw-pat','sawPat','PATTERN'],['t-saw-lead','sawLead','LEADER'],['t-saw-flow','sawFlow','FLOW'],['t-saw-mkt','sawMkt','MARKET'],['t-saw-ctx','sawCtx','CONTEXT'],['t-saw-vs','sawVs','AGAINST']];
 function sawList(t){ return SAW_IDS.slice(0,5).filter(([,k])=>t[k]).map(([,k,l])=>[l,t[k]]); }
 function sawCount(t){ return sawList(t).length; }
-function is5m3br(t){ return /5m three-bar reversal/i.test((t.sawPat||'')+'|'+(t.trig||'')); }
-function is1m3br(t){ return /1m three-bar reversal/i.test((t.sawPat||'')+'|'+(t.trig||'')); }
+function is5m3br(t){ return /(^|[^1])5m three-bar reversal/i.test((t.sawPat||'')+'|'+(t.trig||'')); }
+/* [v5.4.8] */
+function is15m3br(t){ return /15m three-bar reversal/i.test((t.sawPat||'')+'|'+(t.trig||'')); }
+function tbrTf(t){ const s=(t.sawPat||'')+'|'+(t.trig||''); return /15m three-bar/i.test(s)?'15m':(/(^|[^1])5m three-bar/i.test(s)?'5m':(/1m three-bar/i.test(s)?'1m':'')); }
+function isSetupA(t,d){ return !!(d&&d.panelF==='CONTRACTING'&&t.dir==='SHORT'&&is15m3br(t)&&/^(1H|4H) SIBI$/.test(t.gap||'')); }
 const FORM_IDS=['t-time','t-out','t-ins','t-dir','t-qty','t-conf','t-f2','t-loc','t-setup','t-trig','t-stop','t-res','t-pnl','t-exit','t-note'];
 
 function editTrade(i){
@@ -3947,6 +4032,10 @@ function editTrade(i){
   document.getElementById('t-rng').value=t.rng||'';
   document.getElementById('t-addpa').value=t.addPa||'';
   document.getElementById('t-zpt').value=t.zpt||'';
+  document.getElementById('t-gap').value=t.gap||'';
+  document.getElementById('t-depth').value=t.depth||'';
+  document.getElementById('t-rr').value=t.rr||'';
+  document.getElementById('t-paper').checked=!!t.paper;
   document.getElementById('t-addinfo').textContent=t.isAdd?('ADD #'+t.addN+(t.addFirstPts!=null?' · first entry '+(t.addFirstPts>0?'+':'')+t.addFirstPts+' pts at this add':'')):'\u00a0';
   document.getElementById('t-sttest').checked=isStTest(t,d);
   document.getElementById('t-note').value=t.note||'';
@@ -4007,6 +4096,8 @@ function addTrade(override){
     rng:document.getElementById('t-rng').value,
     addPa:document.getElementById('t-addpa').value,
     zpt:document.getElementById('t-zpt').value,
+    gap:document.getElementById('t-gap').value, depth:document.getElementById('t-depth').value,
+    rr:document.getElementById('t-rr').value, paper:!!document.getElementById('t-paper').checked,
     /* Stored explicitly only when it differs from the day: the day toggle stays
        the single switch for an ordinary test day. */
     stTest:(document.getElementById('t-sttest').checked===!!d.stTestDay)?undefined:document.getElementById('t-sttest').checked,
@@ -4040,6 +4131,8 @@ function addTrade(override){
   document.getElementById('t-grp').value='';
   document.getElementById('t-mgmt').value='';
   document.getElementById('t-addpa').value=''; document.getElementById('t-zpt').value=''; document.getElementById('t-addinfo').textContent='\u00a0';
+  /* [v5.4.8] HTF GAP and PAPER stay set for the next parcel of the same idea; depth and R reset. */
+  document.getElementById('t-depth').value=''; document.getElementById('t-rr').value='';
   SAW_IDS.forEach(([id])=>{ document.getElementById(id).value=''; });
   document.getElementById('t-sttest').checked=!!d.stTestDay;
   /* RANGE USED is a habit, not a per-trade choice — leave it set for the next trade. */
@@ -4058,8 +4151,10 @@ function addPass(){
     why:document.getElementById('x-why').value,
     out:document.getElementById('x-out').value,
     pts:+document.getElementById('x-pts').value||0,
-    note:document.getElementById('x-note').value.trim()
+    note:document.getElementById('x-note').value.trim(),
+    gap:document.getElementById('x-gap').value, depth:document.getElementById('x-depth').value
   });
+  document.getElementById('x-depth').value='';
   ['x-time','x-pts','x-note'].forEach(id=>document.getElementById(id).value='');
   recompute(d); save();
 }
@@ -4119,10 +4214,12 @@ const HEAD31=HEAD19.concat(['time_out','hold_min','setup','trigger','location','
   'shakeout_fired_at','shakeout_cleared_at','shakeout_fires','shakeout_source','shakeout_side',
   'shakeout_at_entry','vs_shakeout',
   /* [v5.4.6] Appended, never inserted. */
-  'saw_pattern','saw_leader','saw_flow','saw_market','saw_context','saw_against','saw_count','tbr_5m']);
+  'saw_pattern','saw_leader','saw_flow','saw_market','saw_context','saw_against','saw_count','tbr_5m',
+  /* [v5.4.8] Appended, never inserted. */
+  'htf_gap','tbr_entry_depth','r_reached','paper','tbr_15m','setup_a']);
 function soDayCols(d){ return [d.soFired||'', d.soCleared||'', (d.soFires===''||d.soFires==null)?'':+d.soFires,
   d.soSrc||'', (d.soFired?(d.soSide||'LONG'):'')]; }
-const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note'];
+const HEADPASS=['date','account','time_et','instrument','would_have_been','panel_p','why_not','what_happened','points','note','htf_gap','tbr_entry_depth'];
 
 /* [v5.4.0] The six DAY columns that follow the metric columns. Same contract as
    cardCols: one definition, used by the no-trades row and the trade row, so the
@@ -4207,7 +4304,8 @@ function buildRows(wide){
         .concat([(isStTest(t,d)?'YES':''),vsStateOf(t,d),(t.mgmt||''),(t.rng||'')])
         .concat([(t.isAdd?'YES':''),(t.isAdd?t.addN:''),(t.addFirstPts!=null?t.addFirstPts:''),(t.addPa||''),(t.zpt||'')])
         .concat(soDayCols(d)).concat([shakeoutAt(d,t.mins),vsShakeoutOf(t,d)])
-        .concat([t.sawPat||'',t.sawLead||'',t.sawFlow||'',t.sawMkt||'',t.sawCtx||'',t.sawVs||'',sawCount(t),is5m3br(t)?'YES':''])):base);
+        .concat([t.sawPat||'',t.sawLead||'',t.sawFlow||'',t.sawMkt||'',t.sawCtx||'',t.sawVs||'',sawCount(t),is5m3br(t)?'YES':''])
+        .concat([t.gap||'',t.depth||'',t.rr||'',(t.paper?'YES':''),(is15m3br(t)?'YES':''),(isSetupA(t,d)?'YES':'')])):base);
     });
   });
   return out;
@@ -4221,7 +4319,7 @@ function exportFull(){ dumpCSV(true,'edgeiq_journal_FULL_'); }
 function exportPasses(){
   const rows=[];
   Object.keys(DB.days).sort().forEach(k=>(DB.days[k].passes||[]).forEach(x=>
-    rows.push([k,(DB.days[k].acct||''),fmtMins(x.mins),x.ins||'MNQ',x.dir,x.conf||'',x.why||'',x.out||'',(+x.pts||0),x.note||''])));
+    rows.push([k,(DB.days[k].acct||''),fmtMins(x.mins),x.ins||'MNQ',x.dir,x.conf||'',x.why||'',x.out||'',(+x.pts||0),x.note||'',x.gap||'',x.depth||''])));
   if(!rows.length){ flashCopy('No passed setups logged yet.',true); return; }
   dl([HEADPASS.join(',')].concat(rows.map(r=>r.map(q).join(','))).join('\n'),'text/csv','edgeiq_passes_'+etDate()+'.csv');
 }
